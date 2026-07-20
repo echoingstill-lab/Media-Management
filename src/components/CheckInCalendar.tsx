@@ -22,8 +22,16 @@ export default function CheckInCalendar({
   mediaItems,
   onToggleCheckIn,
 }: CheckInCalendarProps) {
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 6, 19)); // July 19, 2026
-  const [selectedDate, setSelectedDate] = useState<string>('2026-07-19');
+  const todayStr = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mm}-${dd}`;
+  })();
+
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [activeHabitId, setActiveHabitId] = useState<string | null>(habits[0]?.id || 'book');
 
   // Calendar math
@@ -52,8 +60,6 @@ export default function CheckInCalendar({
     const dd = String(d).padStart(2, '0');
     return `${y}-${mm}-${dd}`;
   };
-
-  const todayStr = '2026-07-19';
 
   const getTypeIcon = (type: string) => {
     switch (type) {

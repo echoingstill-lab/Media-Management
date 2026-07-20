@@ -1,0 +1,6 @@
+{
+  "name": "Media Management",
+  "description": "一个具备高杂志感与尖锐现代简洁风的个人媒体库、想看清单及档案管理工具。支持重温、打卡与多平台记录一键导入。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

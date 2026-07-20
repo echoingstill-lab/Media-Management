@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "EB Garamond", "Noto Serif SC", "Times New Roman", "Lora", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Premium British Slate & Cream Theme Palette */
+  --color-brand-black: #4A3B32;        /* 雅致胡桃棕 */
+  --color-brand-grey: #756256;         /* 相思灰 */
+  --color-brand-cream: #DDDAC4;        /* 天球 (Beige-White) */
+  --color-brand-cream-light: #FBF9F3;  /* 软象牙白 */
+  --color-brand-cream-dark: #C5C0AA;   /* 天球深色边框 */
+  --color-brand-dark-bg: #111214;      /* 深灰色底 */
+  --color-brand-dark-card: #191B1E;    /* 暖灰色卡片 */
+  --color-brand-dark-border: #2D3137;  /* 深色边框 */
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: 15px; /* Globally scale font size up as requested */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom smooth transitions & animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

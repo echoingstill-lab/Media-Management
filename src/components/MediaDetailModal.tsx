@@ -276,7 +276,12 @@ export default function MediaDetailModal({
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">当前状态</span>
-                  <span className="text-[12px] font-bold text-emerald-600 dark:text-emerald-500 uppercase">
+                  <span className={`text-[12px] font-bold uppercase ${
+                    item.status === 'completed' ? 'text-emerald-600 dark:text-emerald-500' : 
+                    item.status === 'progress' ? 'text-orange-500 dark:text-orange-400' : 
+                    item.status === 'paused' ? 'text-zinc-500 dark:text-zinc-400' : 
+                    'text-blue-500 dark:text-blue-400'
+                  }`}>
                     {item.status === 'completed' ? '已结案' : item.status === 'progress' ? '进行中' : item.status === 'paused' ? '已搁置' : '想看清单'}
                   </span>
                 </div>

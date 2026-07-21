@@ -280,7 +280,7 @@ export default function MediaEditModal({
                   type="button"
                   onClick={handleAiParse}
                   disabled={aiLoading}
-                  className="px-4 py-2 bg-[#4A3B32] hover:bg-[#382B24] dark:bg-[#DDDAC4] dark:hover:bg-white text-[#FBF9F3] dark:text-[#111214] border border-transparent rounded-none text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer rounded-none border-b-2 font-serif border-transparent text-zinc-500 hover:text-[#4A3B32] hover:border-[#4A3B32] dark:text-zinc-400 dark:hover:text-[#DDDAC4] dark:hover:border-[#DDDAC4] disabled:opacity-50"
                 >
                   {aiLoading ? (
                     <Loader2 size={13} className="animate-spin" />

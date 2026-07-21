@@ -525,8 +525,30 @@ export default function WishlistSection({
                               </div>
                               {/* Default state companion icon - Non-clickable marker */}
                               {(item.watchedWith || item.watchedWithLocation) && (
-                                <div className="shrink-0 mr-1.5 opacity-60">
-                                  <Users size={11} className="text-emerald-500 drop-shadow-[0_0_2px_rgba(16,185,129,0.3)]" />
+                                <div className="shrink-0 mr-1.5 relative group/watched">
+                                  <Users size={11} className="text-emerald-500 drop-shadow-[0_0_2px_rgba(16,185,129,0.3)] cursor-help" />
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute right-0 bottom-full mb-2 hidden group-hover/watched:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-56 shadow-2xl pointer-events-none transition-all animate-fade-in font-sans">
+                                    <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                                      <Users size={12} />
+                                      <span>一同 / TOGETHER</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {item.watchedWith && (
+                                        <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal flex items-start gap-1.5">
+                                          <span className="text-zinc-500 shrink-0">与谁一同:</span>
+                                          <span className="text-zinc-300 font-bold">{item.watchedWith}</span>
+                                        </p>
+                                      )}
+                                      {item.watchedWithLocation && (
+                                        <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal flex items-start gap-1.5">
+                                          <span className="text-zinc-500 shrink-0">何处一同:</span>
+                                          <span className="text-zinc-300">{item.watchedWithLocation}</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -571,8 +593,30 @@ export default function WishlistSection({
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   {/* Default state icon for finished list - Non-clickable marker */}
                                   {(item.watchedWith || item.watchedWithLocation) && (
-                                    <div className="shrink-0 mr-1.5 opacity-40">
-                                      <Users size={10} className="text-zinc-400 dark:text-zinc-650" />
+                                    <div className="shrink-0 mr-1.5 relative group/watched">
+                                      <Users size={10} className="text-zinc-400 dark:text-zinc-650 cursor-help" />
+                                      
+                                      {/* Tooltip */}
+                                      <div className="absolute right-0 bottom-full mb-2 hidden group-hover/watched:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-56 shadow-2xl pointer-events-none transition-all animate-fade-in font-sans">
+                                        <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                                          <Users size={12} />
+                                          <span>一同 / TOGETHER</span>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {item.watchedWith && (
+                                            <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal flex items-start gap-1.5">
+                                              <span className="text-zinc-500 shrink-0">与谁一同:</span>
+                                              <span className="text-zinc-300 font-bold">{item.watchedWith}</span>
+                                            </p>
+                                          )}
+                                          {item.watchedWithLocation && (
+                                            <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal flex items-start gap-1.5">
+                                              <span className="text-zinc-500 shrink-0">何处一同:</span>
+                                              <span className="text-zinc-300">{item.watchedWithLocation}</span>
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
                                   )}
                                 </div>

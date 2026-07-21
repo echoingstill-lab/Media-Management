@@ -143,28 +143,28 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
               {(item.watchedWith || item.reReadLogs?.some(log => log.watchedWith)) && (
                 <div className="relative group/user-tooltip">
                   <Users size={12} className="text-emerald-400 drop-shadow-[0_0_2px_rgba(52,211,153,0.5)] cursor-help" />
-                  <div className="absolute bottom-full right-0 mb-3 hidden group-hover/user-tooltip:block bg-[#FAF8F5] dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-900 dark:text-zinc-100 rounded-none p-3 text-xs w-64 shadow-xl z-[9999] pointer-events-none transition-all animate-fade-in origin-bottom-right">
-                    <div className="font-bold text-[#4A3B32] dark:text-[#DDDAC4] border-b border-zinc-200 dark:border-zinc-700 pb-1.5 mb-2.5 flex items-center justify-between uppercase tracking-wider text-[12px] font-serif">
-                      <div className="flex items-center gap-1.5">
-                        <Users size={10} />
-                        <span>一同信息 / TOGETHER</span>
-                      </div>
-                      <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-none text-[10px]">
-                        {MEDIA_TYPE_LABELS[item.type]}
-                      </span>
+                  <div className="absolute bottom-full right-0 mb-3 hidden group-hover/user-tooltip:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 shadow-2xl pointer-events-none transition-all animate-fade-in font-sans origin-bottom-right">
+                    <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                      <Users size={12} />
+                      <span>一同 / TOGETHER</span>
                     </div>
-                    <div className="space-y-2 text-[12px]">
+                    <div className="space-y-1.5">
                       {item.watchedWith && (
-                        <div className="space-y-0.5">
-                          <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest font-serif">与谁一同</div>
-                          <div className="text-[12px] font-medium text-zinc-900 dark:text-zinc-200">{item.watchedWith}</div>
-                        </div>
+                        <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal flex items-start gap-1.5">
+                          <span className="text-zinc-500 shrink-0">与谁一同:</span>
+                          <span className="text-zinc-300 font-bold">{item.watchedWith}</span>
+                        </p>
                       )}
                       {item.watchedWithLocation && (
-                        <div className="space-y-0.5">
-                          <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest font-serif">何处一同</div>
-                          <div className="text-[12px] font-medium text-zinc-900 dark:text-zinc-200">{item.watchedWithLocation}</div>
-                        </div>
+                        <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal flex items-start gap-1.5">
+                          <span className="text-zinc-500 shrink-0">何处一同:</span>
+                          <span className="text-zinc-300">{item.watchedWithLocation}</span>
+                        </p>
+                      )}
+                      {!item.watchedWith && item.reReadLogs?.some(log => log.watchedWith) && (
+                        <p className="text-zinc-400 italic text-[10px] font-serif">
+                          包含重温存档记录
+                        </p>
                       )}
                     </div>
                   </div>
@@ -195,7 +195,7 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
               className="w-2.5 h-2.5 rounded-none bg-emerald-400 border border-zinc-950/60 shadow-md relative group/dot cursor-help transition-transform hover:scale-125"
             >
               {/* Tooltip on hover */}
-              <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-950/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
+              <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
                 <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center justify-between uppercase tracking-wider text-[10px]">
                   <span>重温 {index + 1}</span>
                   <span className="font-serif text-[10px] text-zinc-400 font-normal">{log.date}</span>

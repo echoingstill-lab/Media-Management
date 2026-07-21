@@ -91,17 +91,17 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         {/* Brand Header */}
         <div className="space-y-3 relative z-10">
           <div className="flex items-center justify-between">
-            <span className="font-serif text-[9px] uppercase tracking-[0.25em] opacity-50">
+            <span className="font-serif text-[9px] tracking-[0.25em] opacity-50">
               档案库系统校验
             </span>
             <div className={`w-1.5 h-1.5 ${darkMode ? 'bg-zinc-400' : 'bg-zinc-800'}`} />
           </div>
           
           <div className="space-y-1">
-            <h1 className="text-2.5xl md:text-3xl font-bold tracking-tight font-serif uppercase">
+            <h1 className="text-2.5xl md:text-3xl font-bold tracking-tight font-serif">
               Media Management
             </h1>
-            <p className="text-xs font-serif opacity-50 uppercase tracking-wider">
+            <p className="text-xs font-serif opacity-50 tracking-wider">
               个人数字媒体馆：书籍、影视与音乐的私藏归档。
             </p>
           </div>
@@ -117,7 +117,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             <button
               type="button"
               onClick={() => { setIsRegister(false); setError(''); }}
-              className={`flex-1 pb-3 text-xs uppercase tracking-wider font-bold transition-all border-b-2 rounded-none ${
+              className={`flex-1 pb-3 text-xs tracking-wider font-bold transition-all border-b-2 rounded-none font-serif ${
                 !isRegister 
                   ? 'border-[#4A3B32] dark:border-zinc-100 text-[#2B1E19] dark:text-[#e3e4e6] opacity-100' 
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-[#e3e4e6] opacity-65'
@@ -128,7 +128,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             <button
               type="button"
               onClick={() => { setIsRegister(true); setError(''); }}
-              className={`flex-1 pb-3 text-xs uppercase tracking-wider font-bold transition-all border-b-2 rounded-none ${
+              className={`flex-1 pb-3 text-xs tracking-wider font-bold transition-all border-b-2 rounded-none font-serif ${
                 isRegister 
                   ? 'border-[#4A3B32] dark:border-zinc-100 text-[#2B1E19] dark:text-[#e3e4e6] opacity-100' 
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-[#e3e4e6] opacity-65'
@@ -157,7 +157,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             
             {/* Username */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-serif uppercase tracking-wider opacity-60 block">
+              <label className="text-[10px] font-serif tracking-wider opacity-60 block">
                 档案用户名
               </label>
               <div className="relative">
@@ -179,7 +179,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-serif uppercase tracking-wider opacity-60 block">
+              <label className="text-[10px] font-serif tracking-wider opacity-60 block">
                 账户密码
               </label>
               <div className="relative">
@@ -202,7 +202,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             {/* Confirm Password (only on Register) */}
             {isRegister && (
               <div className="space-y-1.5 animate-fade-in">
-                <label className="text-[10px] font-serif uppercase tracking-wider opacity-60 block">
+                <label className="text-[10px] font-serif tracking-wider opacity-60 block">
                   确认密码
                 </label>
                 <div className="relative">
@@ -227,7 +227,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           {/* Action button */}
           <button
             type="submit"
-            className={`w-full py-3 text-xs uppercase tracking-widest font-bold transition-all duration-200 flex items-center justify-center gap-2 rounded-none cursor-pointer ${
+            className={`w-full py-3 text-xs tracking-widest font-bold transition-all duration-200 flex items-center justify-center gap-2 rounded-none cursor-pointer font-serif ${
               darkMode 
                 ? 'bg-zinc-100 text-zinc-950 hover:bg-white' 
                 : 'bg-[#4A3B32] text-white hover:bg-[#382B24]'
@@ -240,11 +240,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
         {/* Divider and Guest access */}
         <div className="space-y-4 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10">
-          <div className="flex items-center justify-between text-[10px] font-serif opacity-50">
-            <span>本地持久化已激活</span>
-            <span>无需服务器连接</span>
-          </div>
-          
+
           <button
             type="button"
             onClick={handleGuestLogin}

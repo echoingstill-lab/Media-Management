@@ -234,23 +234,23 @@ export default function MediaEditModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#FBF9F3] dark:bg-[#191B1E] border border-[#dcd6cb] dark:border-[#2D3137] rounded-none w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in font-sans text-zinc-800 dark:text-zinc-200">
+      <div className="bg-[#FBF9F3] dark:bg-[#191B1E] border border-[#dcd6cb] dark:border-[#2D3137] rounded-none w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in font-serif text-zinc-800 dark:text-zinc-200">
         
         {/* Modal Header */}
-        <div className="p-4 border-b border-[#dcd6cb] dark:border-[#2D3137] flex items-center justify-between bg-white dark:bg-[#111214] backdrop-blur-md">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
-            <span>{item ? '编辑书影音记录' : '极速录入书影音'}</span>
+        <div className="p-4 border-b border-[#dcd6cb] dark:border-[#2D3137] flex items-center justify-between bg-zinc-50 dark:bg-[#111214]">
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+            <span>{item ? '编辑书影音档案' : '录入新档案'}</span>
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-250 rounded-none transition-all cursor-pointer"
+            className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 rounded-full transition-all cursor-pointer"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="overflow-y-auto p-6 space-y-6 flex-grow">
+        <div className="overflow-y-auto p-6 space-y-6 flex-grow bg-white dark:bg-[#191B1E]">
           
           {/* AI Link/Search Bar (Highly prominent when creating a new record) */}
           {!item && (
@@ -259,7 +259,7 @@ export default function MediaEditModal({
                 <Sparkles size={14} className="text-amber-500 dark:text-amber-400 animate-pulse" />
                 <span>输入链接或标题极速识别</span>
               </div>
-              <p className="text-[10.5px] text-zinc-550 dark:text-zinc-400 leading-normal font-sans">
+              <p className="text-[10.5px] text-zinc-550 dark:text-zinc-400 leading-normal font-serif">
                 支持维基百科、IMDb、豆瓣、百度百科、新浪、Bangumi 等任何详情页链接，或直接输入作品标题：
               </p>
               <div className="flex gap-2">
@@ -274,7 +274,7 @@ export default function MediaEditModal({
                       handleAiParse();
                     }
                   }}
-                  className="flex-grow text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-3 py-2.5 focus:outline-none focus:border-[#635C56] font-sans"
+                  className="flex-grow text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-3 py-2.5 focus:outline-none focus:border-[#635C56] font-serif"
                 />
                 <button
                   type="button"
@@ -323,13 +323,13 @@ export default function MediaEditModal({
                       placeholder="图片链接 (可选)"
                       value={coverUrl}
                       onChange={(e) => setCoverUrl(e.target.value)}
-                      className="w-full text-[10px] text-center bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-500 dark:text-zinc-400 rounded-none px-2 py-1 focus:outline-none focus:border-[#635C56] font-mono"
+                      className="w-full text-[10px] text-center bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-500 dark:text-zinc-400 rounded-none px-2 py-1 focus:outline-none focus:border-[#635C56] font-serif"
                     />
                   </div>
                 </div>
 
                 {/* Right Inputs: Title & Type */}
-                <div className="sm:col-span-8 flex flex-col justify-center space-y-3.5 font-sans">
+                <div className="sm:col-span-8 flex flex-col justify-center space-y-3.5 font-serif">
                   <div>
                     <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 font-semibold">名称 *</label>
                     <input
@@ -427,7 +427,7 @@ export default function MediaEditModal({
                           type="month"
                           value={wishlistMonth}
                           onChange={(e) => setWishlistMonth(e.target.value)}
-                          className="bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#635C56] font-mono flex-grow sm:flex-grow-0"
+                          className="bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#635C56] font-serif flex-grow sm:flex-grow-0"
                         />
                         <button
                           type="button"
@@ -466,7 +466,7 @@ export default function MediaEditModal({
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2 py-1.5 focus:outline-none focus:border-[#635C56] font-mono"
+                        className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2 py-1.5 focus:outline-none focus:border-[#635C56] font-serif"
                       />
                     </div>
 
@@ -480,7 +480,7 @@ export default function MediaEditModal({
                         value={completedDate}
                         disabled={status !== 'completed'}
                         onChange={(e) => setCompletedDate(e.target.value)}
-                        className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2 py-1.5 focus:outline-none focus:border-[#635C56] font-mono disabled:opacity-30"
+                        className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2 py-1.5 focus:outline-none focus:border-[#635C56] font-serif disabled:opacity-30"
                       />
                     </div>
                   </div>
@@ -664,7 +664,7 @@ export default function MediaEditModal({
           <button
             type="submit"
             form="media-edit-form"
-            className="px-5 py-2 rounded-none text-xs font-bold bg-[#4A3B32] hover:bg-[#382B24] dark:bg-[#DDDAC4] dark:hover:bg-white text-[#FBF9F3] dark:text-[#111214] hover:shadow-lg transition-all cursor-pointer font-sans"
+            className="px-5 py-2 rounded-none text-xs font-bold bg-[#4A3B32] hover:bg-[#382B24] dark:bg-[#DDDAC4] dark:hover:bg-white text-[#FBF9F3] dark:text-[#111214] hover:shadow-lg transition-all cursor-pointer font-serif"
           >
             保存记录
           </button>

@@ -130,44 +130,40 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
         {/* Tall, super-smooth seamless vignette gradient overlay */}
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/80 to-transparent p-4 pt-24 flex flex-col justify-end text-white select-none">
           {/* Title */}
-          <h4 className="text-white font-bold text-sm sm:text-base line-clamp-1 leading-snug tracking-tight font-sans">
+          <h4 className="text-white font-bold text-sm sm:text-base line-clamp-1 leading-snug tracking-tight font-serif">
             {item.title}
           </h4>
 
           {/* Creator & Media Type Icon */}
           <div className="flex items-center justify-between mt-1.5 text-xs text-zinc-400">
-            <span className="line-clamp-1 max-w-[80%] opacity-80 font-medium font-mono tracking-wider uppercase">
+            <span className="line-clamp-1 max-w-[80%] opacity-80 font-medium tracking-tight text-[12px]">
               {item.creator || '佚名'}
             </span>
             <span className="shrink-0 flex items-center gap-2">
               {(item.watchedWith || item.reReadLogs?.some(log => log.watchedWith)) && (
                 <div className="relative group/user-tooltip">
                   <Users size={12} className="text-emerald-400 drop-shadow-[0_0_2px_rgba(52,211,153,0.5)] cursor-help" />
-                  <div className="absolute bottom-full right-0 mb-3 hidden group-hover/user-tooltip:block bg-zinc-950/98 border border-zinc-700 text-white rounded-none p-3 text-xs w-64 shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-[9999] pointer-events-none transition-all animate-fade-in origin-bottom-right">
-                    <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-2.5 flex items-center justify-between uppercase tracking-wider text-[10px]">
+                  <div className="absolute bottom-full right-0 mb-3 hidden group-hover/user-tooltip:block bg-[#FAF8F5] dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-900 dark:text-zinc-100 rounded-none p-3 text-xs w-64 shadow-xl z-[9999] pointer-events-none transition-all animate-fade-in origin-bottom-right">
+                    <div className="font-bold text-[#4A3B32] dark:text-[#DDDAC4] border-b border-zinc-200 dark:border-zinc-700 pb-1.5 mb-2.5 flex items-center justify-between uppercase tracking-wider text-[12px] font-serif">
                       <div className="flex items-center gap-1.5">
                         <Users size={10} />
-                        <span>归档回顾 / ARCHIVE REVIEW</span>
+                        <span>一同信息 / TOGETHER</span>
                       </div>
-                      <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-sm font-mono text-[9px]">
-                        {typeLabel}
+                      <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-none text-[10px]">
+                        {MEDIA_TYPE_LABELS[item.type]}
                       </span>
                     </div>
-                    <div className="space-y-2.5 text-[11px] font-sans">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-zinc-500 uppercase text-[9px] font-bold">同看伴侣 / COMPANION</span>
-                        <span className="text-zinc-200 border-l-2 border-emerald-500/30 pl-2 ml-0.5">{item.watchedWith || '个人独享'}</span>
-                      </div>
-                      {item.watchedWithLocation && (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-zinc-500 uppercase text-[9px] font-bold">记录地点 / LOCATION</span>
-                          <span className="text-zinc-200 border-l-2 border-zinc-700 pl-2 ml-0.5">{item.watchedWithLocation}</span>
+                    <div className="space-y-2 text-[12px]">
+                      {item.watchedWith && (
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest font-serif">与谁一同</div>
+                          <div className="text-[12px] font-medium text-zinc-900 dark:text-zinc-200">{item.watchedWith}</div>
                         </div>
                       )}
-                      {item.watchedWithExperience && (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-zinc-500 uppercase text-[9px] font-bold">同看体验 / EXPERIENCE</span>
-                          <span className="text-zinc-200 border-l-2 border-zinc-700 pl-2 ml-0.5 italic leading-relaxed">{item.watchedWithExperience}</span>
+                      {item.watchedWithLocation && (
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest font-serif">何处一同</div>
+                          <div className="text-[12px] font-medium text-zinc-900 dark:text-zinc-200">{item.watchedWithLocation}</div>
                         </div>
                       )}
                     </div>
@@ -200,16 +196,16 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
             >
               {/* Tooltip on hover */}
               <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-950/95 border border-zinc-800 text-white rounded-none p-3 text-xs w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
-                <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-sans flex items-center justify-between uppercase tracking-wider">
+                <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center justify-between uppercase tracking-wider">
                   <span>重温 {index + 1}</span>
-                  <span className="font-mono text-[11px] text-zinc-400 font-normal">{log.date}</span>
+                  <span className="font-serif text-[11px] text-zinc-400 font-normal">{log.date}</span>
                 </div>
                 {log.note ? (
-                  <p className="text-zinc-300 font-sans leading-relaxed text-xs break-words whitespace-normal">
+                   <p className="text-zinc-300 font-serif leading-relaxed text-xs break-words whitespace-normal">
                     "{log.note}"
                   </p>
                 ) : (
-                  <span className="text-zinc-500 italic font-sans text-xs">无温读备注</span>
+                  <span className="text-zinc-500 italic font-serif text-xs">无温读备注</span>
                 )}
               </div>
             </div>

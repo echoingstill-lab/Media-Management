@@ -91,17 +91,17 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         {/* Brand Header */}
         <div className="space-y-3 relative z-10">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] opacity-50">
+            <span className="font-serif text-[9px] uppercase tracking-[0.25em] opacity-50">
               档案库系统校验
             </span>
             <div className={`w-1.5 h-1.5 ${darkMode ? 'bg-zinc-400' : 'bg-zinc-800'}`} />
           </div>
           
           <div className="space-y-1">
-            <h1 className="text-2.5xl md:text-3xl font-bold tracking-tight font-sans uppercase">
+            <h1 className="text-2.5xl md:text-3xl font-bold tracking-tight font-serif uppercase">
               Media Management
             </h1>
-            <p className="text-xs font-mono opacity-50 uppercase tracking-wider">
+            <p className="text-xs font-serif opacity-50 uppercase tracking-wider">
               个人数字媒体馆：书籍、影视与音乐的私藏归档。
             </p>
           </div>
@@ -140,13 +140,13 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
           {/* Feedback messages */}
           {error && (
-            <div className="p-3 text-xs font-mono bg-red-500/10 border border-red-500/20 text-red-500 rounded-none">
+            <div className="p-3 text-xs font-serif bg-red-500/10 border border-red-500/20 text-red-500 rounded-none">
               ⚠️ {error}
             </div>
           )}
           
           {successMsg && (
-            <div className="p-3 text-xs font-mono bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-none flex items-center gap-2">
+            <div className="p-3 text-xs font-serif bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-none flex items-center gap-2">
               <SquareCheck size={12} strokeWidth={3} />
               <span>{successMsg}</span>
             </div>
@@ -157,7 +157,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             
             {/* Username */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono uppercase tracking-wider opacity-60 block">
+              <label className="text-[10px] font-serif uppercase tracking-wider opacity-60 block">
                 档案用户名
               </label>
               <div className="relative">
@@ -179,7 +179,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono uppercase tracking-wider opacity-60 block">
+              <label className="text-[10px] font-serif uppercase tracking-wider opacity-60 block">
                 账户密码
               </label>
               <div className="relative">
@@ -202,7 +202,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             {/* Confirm Password (only on Register) */}
             {isRegister && (
               <div className="space-y-1.5 animate-fade-in">
-                <label className="text-[10px] font-mono uppercase tracking-wider opacity-60 block">
+                <label className="text-[10px] font-serif uppercase tracking-wider opacity-60 block">
                   确认密码
                 </label>
                 <div className="relative">
@@ -240,7 +240,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
         {/* Divider and Guest access */}
         <div className="space-y-4 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10">
-          <div className="flex items-center justify-between text-[10px] font-mono opacity-50">
+          <div className="flex items-center justify-between text-[10px] font-serif opacity-50">
             <span>本地持久化已激活</span>
             <span>无需服务器连接</span>
           </div>
@@ -257,7 +257,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             以本地游客身份直接进入 (自动保存)
           </button>
           
-          <p className="text-[9.5px] text-center opacity-40 font-sans leading-relaxed">
+          <p className="text-[9.5px] text-center opacity-40 font-serif leading-relaxed">
             数据默认持久化于本地浏览器缓存，注册的账号密码同样保存在本设备的加密隔离沙盒中。未来升级云服务时，可一键导入并多端同步。
           </p>
         </div>

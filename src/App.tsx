@@ -311,7 +311,7 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen transition-all duration-300 font-sans ${
+      className={`min-h-screen transition-all duration-300 font-serif ${
         darkMode
           ? 'dark bg-[#111214] text-[#e3e4e6] selection:bg-zinc-800'
           : 'bg-[#FAF8F5] text-[#2B1E19] selection:bg-zinc-200'
@@ -339,10 +339,10 @@ export default function App() {
           </div>
 
           {/* User Profile, Theme & LogOut */}
-          <div className="flex items-center gap-3 self-end md:self-auto font-mono text-xs">
+          <div className="flex items-center gap-3 self-end md:self-auto text-xs">
             <div className="flex items-center gap-2 px-3 py-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-[#121214] rounded-none">
               <User size={13} className="opacity-60" />
-              <span className="font-bold uppercase text-[11px] tracking-wider text-[#4A3B32] dark:text-zinc-400">
+              <span className="font-bold uppercase text-[12px] tracking-wider text-[#4A3B32] dark:text-zinc-400 font-serif">
                 用户: {currentUser}
               </span>
             </div>
@@ -358,18 +358,6 @@ export default function App() {
               title={darkMode ? "切换至白天模式" : "切换至深色模式"}
             >
               {darkMode ? <Sun size={13} /> : <Moon size={13} />}
-            </button>
-
-            {/* Quick Record Create Button */}
-            <button
-              onClick={() => {
-                setActiveMediaEdit(null);
-                setShowAddModal(true);
-              }}
-              className="px-3.5 py-1.5 rounded-none bg-[#4A3B32] hover:bg-[#382B24] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:hover:bg-white dark:text-[#111214] font-bold uppercase text-[10.5px] tracking-wider flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <Plus size={12} />
-              <span>录入</span>
             </button>
 
             {/* Logout Button */}
@@ -444,6 +432,23 @@ export default function App() {
             <Database size={14} />
             <span>数据相关</span>
           </button>
+
+          <div className="flex-grow" />
+
+          <button
+            onClick={() => {
+              setActiveMediaEdit(null);
+              setShowAddModal(true);
+            }}
+            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
+              darkMode 
+                ? 'border-transparent text-zinc-400 hover:text-[#DDDAC4] hover:border-[#DDDAC4]' 
+                : 'border-transparent text-zinc-500 hover:text-[#4A3B32] hover:border-[#4A3B32]'
+            }`}
+          >
+            <Plus size={14} />
+            <span>录入档案</span>
+          </button>
         </nav>
 
         {/* ==================== TAB 1: 想看清单 (WISHLIST) ==================== */}
@@ -467,27 +472,29 @@ export default function App() {
             <div className={`p-4 rounded-none border flex flex-col md:flex-row md:items-center gap-4 ${
               darkMode ? 'bg-[#191b1e] border-[#2d3137]' : 'bg-white border-[#E6E0D5] shadow-sm'
             }`}>
-              {/* Fuzzy Search bar */}
-              <div className="relative flex-grow">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-zinc-450" />
-                <input
-                  type="text"
-                  placeholder="搜索名称、作者或标签……"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`w-full text-sm pl-9 pr-4 py-2.5 rounded-none border focus:outline-none ${
-                    darkMode
-                      ? 'bg-[#111214] border-[#2d3137] focus:border-[#635C56] text-zinc-100'
-                      : 'bg-[#FAF8F5] border-[#E6E0D5] focus:border-[#4A3B32] text-[#2B1E19]'
-                  }`}
-                />
+              {/* Search bar */}
+              <div className="relative flex-grow flex gap-3">
+                <div className="relative flex-grow">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-zinc-450" />
+                  <input
+                    type="text"
+                    placeholder="搜索名称、作者或标签……"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={`w-full text-sm pl-9 pr-4 py-2.5 rounded-none border focus:outline-none ${
+                      darkMode
+                        ? 'bg-[#111214] border-[#2d3137] focus:border-[#635C56] text-zinc-100'
+                        : 'bg-[#FAF8F5] border-[#E6E0D5] focus:border-[#4A3B32] text-[#2B1E19]'
+                    }`}
+                  />
+                </div>
               </div>
 
               {/* Status Selector Dropdown */}
               <div className="flex flex-wrap items-center gap-2.5">
-                <div className="flex items-center gap-1.5 font-mono">
+                <div className="flex items-center gap-1.5">
                   <Filter size={12} className="opacity-40" />
-                  <span className="text-sm font-serif uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-bold">状态筛选</span>
+                  <span className="text-[12px] font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-serif">状态筛选</span>
                 </div>
                 <div className="flex bg-[#FAF8F5] dark:bg-[#111214] p-1 border border-[#E6E0D5] dark:border-[#2d3137] gap-1 text-xs rounded-none">
                   {[
@@ -514,7 +521,7 @@ export default function App() {
             </div>
 
             {/* Redesigned Media Type Categories Dock */}
-            <div className="space-y-2 mt-4 font-sans">
+            <div className="space-y-2 mt-4 font-serif">
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-serif uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-bold">媒体类型</span>
                 <span className="h-px bg-[#E6E0D5] dark:bg-[#2d3137] flex-grow" />
@@ -579,7 +586,7 @@ export default function App() {
                     setSelectedStatusFilter('all');
                     setSelectedCollectionFilter(null);
                   }}
-                  className="px-3.5 py-1.5 text-[10px] bg-zinc-900 hover:bg-black dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-950 font-bold uppercase tracking-widest rounded-none transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 text-[11px] bg-zinc-900 hover:bg-black dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-950 font-bold uppercase tracking-widest rounded-none transition-colors cursor-pointer font-serif"
                 >
                   重置筛选条件
                 </button>
@@ -690,7 +697,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 mb-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">加入合集 / ADD TO COLLECTION</span>
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest font-serif">加入合集 / ADD TO COLLECTION</span>
               </div>
               {(() => {
                 const targetItem = mediaItems.find(i => i.id === collectionContextMenu.itemId);

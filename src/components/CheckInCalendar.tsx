@@ -104,7 +104,7 @@ export default function CheckInCalendar({
   const overallStreak = calculateStreak(checkInLogs);
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-6 font-serif">
       
       {/* Main Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
@@ -113,7 +113,7 @@ export default function CheckInCalendar({
         <div className="lg:col-span-9 bg-white dark:bg-[#191b1e] border border-[#E6E0D5] dark:border-[#2d3137] rounded-none p-6 sm:p-10 animate-fade-in shadow-sm">
           <div className="flex items-end justify-between mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-6">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] leading-none mb-2">Monthly Archive</span>
+              <span className="text-[10px] font-bold font-serif text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] leading-none mb-2">Monthly Archive</span>
               <h2 className="text-3xl font-serif font-bold text-[#4A3B32] dark:text-[#DDDAC4] uppercase tracking-tight flex items-center gap-3 leading-none">
                 {year} / {monthNames[month]}
               </h2>
@@ -144,7 +144,7 @@ export default function CheckInCalendar({
 
           <div className="grid grid-cols-7 gap-2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500 py-3 font-mono border-b border-zinc-50 dark:border-zinc-900 mb-2">{day}</div>
+              <div key={day} className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500 py-3 font-serif border-b border-zinc-50 dark:border-zinc-900 mb-2">{day}</div>
             ))}
             
             {Array.from({ length: firstDayOfMonth }).map((_, idx) => (
@@ -172,7 +172,7 @@ export default function CheckInCalendar({
                   }`}
                 >
                   <div className="flex justify-between items-start w-full">
-                    <span className={`text-xs font-mono ${isSelected ? 'font-black text-[#4A3B32] dark:text-[#DDDAC4]' : isToday ? 'font-bold text-emerald-600 dark:text-emerald-400' : 'opacity-60 font-medium'}`}>{dayNum}</span>
+                    <span className={`text-xs font-serif ${isSelected ? 'font-black text-[#4A3B32] dark:text-[#DDDAC4]' : isToday ? 'font-bold text-emerald-600 dark:text-emerald-400' : 'opacity-60 font-medium'}`}>{dayNum}</span>
                     {isToday && (
                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                     )}
@@ -341,7 +341,7 @@ export default function CheckInCalendar({
                         <span className="text-sm font-bold font-serif leading-tight">{habit.name}</span>
                         <div className="flex items-center gap-1.5 mt-1">
                           <div className={`w-1.5 h-1.5 rounded-full ${colors[habit.id] || 'bg-zinc-400'}`} />
-                          <span className="text-[9px] font-mono opacity-60 uppercase tracking-tight">Archives: {checkInLogs.filter(l => l.habitId === habit.id).length}</span>
+                          <span className="text-[9px] font-serif opacity-60 uppercase tracking-tight">Archives: {checkInLogs.filter(l => l.habitId === habit.id).length}</span>
                         </div>
                       </div>
                     </div>

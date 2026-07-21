@@ -266,6 +266,17 @@ export default function DataManagement({
             }
           }
 
+          // Resolve Status
+          let parsedStatus: MediaItem['status'] = 'completed';
+          const sVal = (cols[titleIndex] || '').toLowerCase(); // Or check in comment/note column
+          if (sVal.includes('想看') || sVal.includes('wish')) {
+             parsedStatus = 'wishlist';
+          } else if (sVal.includes('在读') || sVal.includes('在看') || sVal.includes('进行中')) {
+             parsedStatus = 'progress';
+          } else if (sVal.includes('搁置')) {
+             parsedStatus = 'paused';
+          }
+
           rows.push({
             id: `row-${i}-${Date.now()}`,
             title: cleanTitle,
@@ -273,7 +284,7 @@ export default function DataManagement({
             creator: cleanCreator,
             personalRating: rating,
             personalNote: cleanNote,
-            status: defaultImportStatus,
+            status: parsedStatus,
             tags: parsedTags,
             isValid: true,
             selected: true,
@@ -403,7 +414,7 @@ export default function DataManagement({
   };
 
   return (
-    <div className="space-y-8 font-sans">
+    <div className="space-y-8 font-serif">
       
       {/* 1. Core Backup & Restore */}
       <div className={`border p-6 rounded-none transition-all duration-300 ${
@@ -495,7 +506,7 @@ export default function DataManagement({
             ) : (
               <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-500" />
             )}
-            <div className="leading-relaxed font-sans font-medium">{status.message}</div>
+            <div className="leading-relaxed font-serif font-medium">{status.message}</div>
           </div>
         )}
       </div>
@@ -517,11 +528,11 @@ export default function DataManagement({
         <div className="space-y-4">
           <div className="p-4 bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-350 dark:border-zinc-850 rounded-none text-xs leading-relaxed space-y-2">
             <p className="font-bold text-zinc-700 dark:text-zinc-300">使用说明：</p>
-            <ul className="list-disc list-inside space-y-1 text-zinc-500 dark:text-zinc-400 font-sans">
+            <ul className="list-disc list-inside space-y-1 text-zinc-500 dark:text-zinc-400 font-serif">
               <li><strong>CSV/TSV 格式导入：</strong>直接复制您导出的 CSV 文件内容（首行包含列名如 `标题`, `个人评分`, `短评` / `Title`, `Rating`, `Comment` ），粘贴到下方文本框中。系统将智能分析字段对应入库。</li>
               <li><strong>纯文本名单导入：</strong>您也可以直接按行粘贴一连串媒体名称，例如：<br />
-                <code className="text-zinc-800 dark:text-zinc-300 font-mono text-[10px] bg-zinc-100 dark:bg-zinc-900 px-1 py-0.5">盗梦空间 (导演：诺兰) ★★★★★</code><br />
-                <code className="text-zinc-800 dark:text-zinc-300 font-mono text-[10px] bg-zinc-100 dark:bg-zinc-900 px-1 py-0.5">平凡的世界 (作者：路遥) 4/5</code>
+                <code className="text-zinc-800 dark:text-zinc-300 font-serif text-[10px] bg-zinc-100 dark:bg-zinc-900 px-1 py-0.5">盗梦空间 (导演：诺兰) ★★★★★</code><br />
+                <code className="text-zinc-800 dark:text-zinc-300 font-serif text-[10px] bg-zinc-100 dark:bg-zinc-900 px-1 py-0.5">平凡的世界 (作者：路遥) 4/5</code>
               </li>
             </ul>
           </div>
@@ -529,7 +540,7 @@ export default function DataManagement({
           {/* Import Controls Form */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+              <label className="text-[10px] font-serif uppercase tracking-wider text-zinc-500 block">
                 默认媒体分类
               </label>
               <select
@@ -544,7 +555,7 @@ export default function DataManagement({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+              <label className="text-[10px] font-serif uppercase tracking-wider text-zinc-500 block">
                 默认状态归档
               </label>
               <select
@@ -562,7 +573,7 @@ export default function DataManagement({
 
           {/* Textarea Input */}
           <div className="space-y-1.5">
-            <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+            <label className="text-[10px] font-serif uppercase tracking-wider text-zinc-500 block">
               复制备份数据粘贴至下方
             </label>
             <textarea
@@ -570,7 +581,7 @@ export default function DataManagement({
               onChange={(e) => setImportText(e.target.value)}
               placeholder="列名示例：标题,导演,个人评分,短评&#10;盗梦空间,克里斯托弗·诺兰,5,太精彩了！&#10;或者纯文本单子：&#10;百年孤独 (作者:加西亚·马尔克斯)&#10;黑神话：悟空"
               rows={6}
-              className={`w-full font-mono text-[11px] p-3 border rounded-none focus:outline-none focus:border-zinc-500 ${
+              className={`w-full font-serif text-[11px] p-3 border rounded-none focus:outline-none focus:border-zinc-500 ${
                 darkMode 
                   ? 'bg-[#18181c] border-zinc-800 text-zinc-200' 
                   : 'bg-zinc-50 border-zinc-250 text-zinc-800'
@@ -580,7 +591,7 @@ export default function DataManagement({
 
           <div className="flex justify-between items-center">
             {parsingError && (
-              <span className="text-red-500 text-xs font-mono">⚠️ {parsingError}</span>
+              <span className="text-red-500 text-xs font-serif">⚠️ {parsingError}</span>
             )}
             <button
               onClick={handleParseImportText}
@@ -654,7 +665,7 @@ export default function DataManagement({
                       {row.tags.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                           {row.tags.map((t, idx) => (
-                            <span key={idx} className="text-[9px] px-1 border border-zinc-200 dark:border-zinc-800 text-zinc-500 font-mono">
+                            <span key={idx} className="text-[9px] px-1 border border-zinc-200 dark:border-zinc-800 text-zinc-500 font-serif">
                               {t}
                             </span>
                           ))}
@@ -690,7 +701,7 @@ export default function DataManagement({
 
                       {/* Star Display */}
                       {row.personalRating > 0 && (
-                        <span className="text-[10px] font-mono text-zinc-700 dark:text-zinc-300 font-bold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 align-middle">
+                        <span className="text-[10px] font-serif text-zinc-700 dark:text-zinc-300 font-bold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-1.5 py-0.5 align-middle">
                           评分: {row.personalRating}/10
                         </span>
                       )}

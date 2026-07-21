@@ -26,6 +26,7 @@ export default function MediaDetailModal({
 }: MediaDetailModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'note' | 'reread'>('note');
+  const [fullscreenImageIndex, setFullscreenImageIndex] = useState<number | null>(null);
 
   // Edit notes state
   const [rating, setRating] = useState(item.personalRating);
@@ -34,11 +35,12 @@ export default function MediaDetailModal({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
 
-  // New Re-read Log state
-  const [showRereadForm, setShowRereadForm] = useState(false);
-  const [rereadDate, setRereadDate] = useState(new Date().toISOString().split('T')[0]);
-  const [rereadNote, setRereadNote] = useState('');
-  const [showReReadsDropdown, setShowReReadsDropdown] = useState(false);
+  // Re-read Log state
+  const [reReadDate, setReReadDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reReadNote, setReReadNote] = useState('');
+  const [reReadWatchedWith, setReReadWatchedWith] = useState('');
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Interactive binary rating helper (10 = Like, 1 = Dislike, 0 = Unrated)
   const handleBinaryRatingClick = (type: 'like' | 'dislike') => {
@@ -54,11 +56,12 @@ export default function MediaDetailModal({
   };
 
   // Drag and drop or Paste image files
-  const handleImageUpload = async (file: File) => {
+  const handleImageUploads = async (files: FileList | File[]) => {
     setImageUploading(true);
     try {
-      const compressed = await compressImage(file, 500, 0.7);
-      const updatedImages = [...noteImages, compressed];
+      const uploadPromises = Array.from(files).map(file => compressImage(file, 800, 0.7));
+      const compressedImages = await Promise.all(uploadPromises);
+      const updatedImages = [...noteImages, ...compressedImages];
       setNoteImages(updatedImages);
       
       // Auto save updated images to DB
@@ -73,21 +76,22 @@ export default function MediaDetailModal({
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items;
+    const files: File[] = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          await handleImageUpload(file);
-        }
+        if (file) files.push(file);
       }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      await handleImageUploads(files);
     }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await handleImageUpload(file);
+    if (e.target.files && e.target.files.length > 0) {
+      await handleImageUploads(e.target.files);
     }
   };
 
@@ -112,49 +116,6 @@ export default function MediaDetailModal({
     }, 400);
   };
 
-  // Re-read log registry
-  const handleAddReread = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rereadDate) return;
-
-    const newLog: ReReadLog = {
-      id: `re-${Date.now()}`,
-      date: rereadDate,
-      note: rereadNote.trim(),
-    };
-
-    const updatedLogs = [newLog, ...item.reReadLogs];
-    const updated = {
-      ...item,
-      reReadCount: item.reReadCount + 1,
-      reReadLogs: updatedLogs,
-      updatedAt: new Date().toISOString(),
-    };
-
-    onUpdateItem(updated);
-    setRereadNote('');
-    setShowRereadForm(false);
-  };
-
-  const handleDeleteReread = (id: string) => {
-    if (window.confirm('Delete this re-watch/re-read log?')) {
-      const updatedLogs = item.reReadLogs.filter(log => log.id !== id);
-      const updated = {
-        ...item,
-        reReadCount: Math.max(0, item.reReadCount - 1),
-        reReadLogs: updatedLogs,
-        updatedAt: new Date().toISOString(),
-      };
-      onUpdateItem(updated);
-    }
-  };
-
-  const [showAddReRead, setShowAddReRead] = useState(false);
-  const [reReadDate, setReReadDate] = useState(new Date().toISOString().split('T')[0]);
-  const [reReadNote, setReReadNote] = useState('');
-  const [reReadWatchedWith, setReReadWatchedWith] = useState('');
-  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
-
   const toggleLog = (id: string) => {
     setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -170,51 +131,85 @@ export default function MediaDetailModal({
     
     const updatedItem = {
       ...item,
+      reReadCount: (item.reReadCount || 0) + 1,
       reReadLogs: [newLog, ...(item.reReadLogs || [])]
     };
     
     onUpdateItem(updatedItem);
-    setShowAddReRead(false);
     setReReadNote('');
     setReReadWatchedWith('');
   };
 
+  const handleDeleteReRead = (id: string) => {
+    if (window.confirm('确定要删除这条重温记录吗？')) {
+      const updatedLogs = (item.reReadLogs || []).filter(l => l.id !== id);
+      onUpdateItem({
+        ...item,
+        reReadCount: Math.max(0, (item.reReadCount || 0) - 1),
+        reReadLogs: updatedLogs
+      });
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/40 dark:bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#191b1e] border border-[#dcd6cb] dark:border-[#2d3137] rounded-none w-full max-w-5xl shadow-2xl overflow-hidden max-h-[96vh] min-h-[85vh] flex flex-col animate-fade-in text-zinc-800 dark:text-zinc-300">
+      <div className="bg-white dark:bg-[#191b1e] border border-[#dcd6cb] dark:border-[#2d3137] rounded-none w-full max-w-6xl shadow-2xl overflow-hidden max-h-[96vh] min-h-[60vh] md:min-h-[650px] flex flex-col animate-fade-in text-zinc-800 dark:text-zinc-300">
         
         {/* Modal Header */}
         <div className="p-5 border-b border-[#dcd6cb] dark:border-[#2d3137] flex items-center justify-between bg-[#fbf9f3] dark:bg-[#111214] backdrop-blur-md">
-          <div className="flex items-center gap-2 text-[13px] uppercase font-sans font-bold tracking-wider text-zinc-500 dark:text-zinc-400">
-            <span>档案详情 / </span>
-            <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
-              {item.type === 'book' && <Book size={12} />}
-              {item.type === 'movie' && <Film size={12} />}
-              {item.type === 'tv' && <Tv size={12} />}
-              {item.type === 'music' && <Music size={12} />}
-              {item.type === 'game' && <Gamepad size={12} />}
-              {item.type === 'anime' && <Ghost size={12} />}
-              <span className="font-bold text-sm">{MEDIA_TYPE_LABELS[item.type]}</span>
+          <div className="flex items-center gap-1.5 text-[13px] font-serif font-bold tracking-wider text-zinc-500 dark:text-zinc-400 uppercase">
+            <span>档案详情</span>
+            <span>/</span>
+            <div className="flex items-center gap-1.5">
+              {item.type === 'book' && <Book size={13} />}
+              {item.type === 'movie' && <Film size={13} />}
+              {item.type === 'tv' && <Tv size={13} />}
+              {item.type === 'music' && <Music size={13} />}
+              {item.type === 'game' && <Gamepad size={13} />}
+              {item.type === 'anime' && <Ghost size={13} />}
+              <span>{MEDIA_TYPE_LABELS[item.type]}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-2 animate-fade-in">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold uppercase tracking-widest rounded-none transition-all cursor-pointer shadow-sm"
+                >
+                  <span>取消</span>
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="px-4 py-2 bg-red-600 text-white border border-red-600 hover:bg-red-700 dark:bg-red-900 dark:border-red-900 dark:hover:bg-red-800 text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-red-500/20"
+                >
+                  <Trash2 size={13} />
+                  <span>确定删除</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/40 text-red-700 dark:text-red-400 border border-zinc-200 dark:border-[#2d3137] hover:bg-red-500 hover:text-white hover:border-red-500 dark:hover:bg-red-900 dark:hover:text-red-100 dark:hover:border-red-900 text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Trash2 size={13} />
+                <span>删除媒体</span>
+              </button>
+            )}
             <button
               onClick={onEdit}
-              className="px-5 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer border border-[#dcd6cb] dark:border-[#2d3137]"
+              className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/40 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-[#2d3137] hover:bg-[#4A3B32] hover:text-[#FBF9F3] hover:border-[#4A3B32] dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] dark:hover:border-[#DDDAC4] text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Edit2 size={13} />
-              <span>编辑</span>
+              <span>编辑信息</span>
             </button>
             <button
-              onClick={() => {
-                if (window.confirm(`确定要删除: "${item.title}" 吗?`)) {
-                  onDelete();
-                }
-              }}
-              className="px-5 py-2 bg-red-500/5 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer border border-red-500/10"
+              onClick={handleSaveNote}
+              disabled={isSavingNote}
+              className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/40 text-[#4A3B32] dark:text-[#DDDAC4] border border-[#dcd6cb] dark:border-[#2d3137] hover:bg-[#4A3B32] hover:text-[#FBF9F3] hover:border-[#4A3B32] dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] dark:hover:border-[#DDDAC4] text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
             >
-              <Trash2 size={13} />
-              <span>删除</span>
+              {isSavingNote ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              <span>保存记录</span>
             </button>
             <button
               onClick={onClose}
@@ -225,561 +220,370 @@ export default function MediaDetailModal({
           </div>
         </div>
 
-        {/* Modal Main Body */}
-        <div className="overflow-y-auto p-8 grid grid-cols-1 md:grid-cols-12 gap-10 flex-grow">
+        {/* Modal Main Body - REDESIGNED */}
+        <div className="overflow-y-auto p-8 grid grid-cols-1 md:grid-cols-12 gap-x-12 gap-y-10 flex-grow">
           
-          {/* Left Block: Beautiful Portrait Cover Card & Metadata */}
-          <div className="md:col-span-4 space-y-6">
-            <div className="relative aspect-[2/3] w-full bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] shadow-xl group">
+          {/* LEFT: Information Display (3/12) */}
+          <div className="md:col-span-3 flex flex-col space-y-6">
+            {/* Cover Image */}
+            <div className="relative aspect-[2/3] w-full max-w-[180px] mx-auto bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] shadow-xl group">
               <img src={item.coverUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={item.title} />
               <div className="absolute inset-0 ring-1 ring-inset ring-white/10" />
             </div>
 
+            {/* Static Info Block */}
             <div className="space-y-4">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-sans tracking-tight">{item.title}</h3>
-                {item.status === 'progress' && (
-                  <span className="flex items-center gap-1.5 text-[9px] px-2 py-0.5 font-bold uppercase tracking-widest bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-none">
-                    <span className="w-1 h-1 bg-amber-500 rounded-full animate-pulse" />
-                    进行中
-                  </span>
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-serif tracking-tight leading-tight">{item.title}</h3>
+              
+              <div className="space-y-3">
+                {item.creator && (
+                  <div className="text-[13px] text-zinc-500 dark:text-zinc-400 font-serif font-bold uppercase tracking-wider">
+                    {item.creator}
+                  </div>
                 )}
-                {item.status === 'completed' && (
-                  <span className="flex items-center gap-1.5 text-[9px] px-2 py-0.5 font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-none">
-                    <CheckCircle2 size={10} className="fill-emerald-500/10" />
-                    已完成
-                  </span>
-                )}
-              </div>
-              
-              {item.creator && (
-                <div className="text-[13px] text-zinc-500 dark:text-zinc-400 font-sans font-medium uppercase tracking-wider">
-                  {item.creator}
-                </div>
-              )}
-              
-              {item.watchedWith && (
-                <div className="flex items-center gap-2 text-xs font-bold text-[#4A3B32] dark:text-[#DDDAC4] bg-[#4A3B32]/5 dark:bg-[#DDDAC4]/10 p-2 border border-[#4A3B32]/10 dark:border-[#DDDAC4]/10">
-                  <Users size={14} />
-                  <span>共同观看/阅读：{item.watchedWith}</span>
-                </div>
-              )}
-              
-              {item.description && (
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed font-sans opacity-90">
-                  {item.description}
-                </p>
-              )}
-
-              {/* Tag Badges */}
-              {item.tags && item.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {item.tags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      className="text-[11px] px-2 py-0.5 rounded-none bg-zinc-50 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-500 dark:text-zinc-400 font-mono tracking-tighter"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Redesigned Archival Timeline Section */}
-              <div className="pt-6 border-t border-[#dcd6cb] dark:border-[#2d3137] space-y-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">时间轨迹 / ARCHIVAL LOG</div>
-                  {item.status === 'completed' && !showAddReRead && (
-                    <button 
-                      onClick={() => setShowAddReRead(true)}
-                      className="text-[9px] font-bold text-[#4A3B32] dark:text-[#DDDAC4] hover:underline uppercase tracking-widest cursor-pointer"
-                    >
-                      + 新增重温记录
-                    </button>
-                  )}
-                </div>
                 
-                  {showAddReRead && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-6 p-4 bg-zinc-50 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-zinc-800 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">记录一次新的回顾</span>
-                      <button onClick={() => setShowAddReRead(false)} className="text-zinc-400 hover:text-zinc-600"><X size={14} /></button>
-                    </div>
-                    <form onSubmit={handleAddReRead} className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-zinc-400 uppercase">日期</label>
-                          <input 
-                            type="date" 
-                            value={reReadDate}
-                            onChange={(e) => setReReadDate(e.target.value)}
-                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-zinc-400 uppercase">共同观看/阅读 (可选)</label>
-                          <input 
-                            type="text"
-                            placeholder="例如：家人、张三"
-                            value={reReadWatchedWith}
-                            onChange={(e) => setReReadWatchedWith(e.target.value)}
-                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-zinc-400 uppercase">感悟或备注</label>
-                        <textarea 
-                          placeholder="感悟或备注 (可选)..."
-                          value={reReadNote}
-                          onChange={(e) => setReReadNote(e.target.value)}
-                          className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 min-h-[60px] focus:outline-none"
-                        />
-                      </div>
-                      <button 
-                        type="submit"
-                        className="w-full py-2 bg-[#4A3B32] dark:bg-[#DDDAC4] text-white dark:text-[#111214] text-[10px] font-bold uppercase tracking-widest"
+                {item.description && (
+                  <p className="text-[12px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-serif opacity-90 max-w-2xl italic">
+                    {item.description}
+                  </p>
+                )}
+
+                {/* Tag Badges */}
+                {item.tags && item.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {item.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="text-[10px] px-2 py-0.5 bg-zinc-50 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-500 dark:text-zinc-400 tracking-tighter"
                       >
-                        确认记录
-                      </button>
-                    </form>
-                  </motion.div>
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                
-                <div className="relative pl-6 space-y-6">
-                  {/* Vertical line connecting nodes */}
-                  <div className="absolute left-[7px] top-1.5 bottom-1.5 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
-
-                  {/* Milestone: Entry */}
-                  <div className="relative">
-                    <div className="absolute -left-[23px] top-1 w-2.5 h-2.5 bg-zinc-100 dark:bg-[#191b1e] border-2 border-zinc-300 dark:border-zinc-700 rounded-full z-10" />
-                    <div className="space-y-0.5">
-                      <div className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">记录录入 / ARCHIVED AT</div>
-                      <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">
-                        {(() => {
-                          // Prioritize createdAt, fallback to item ID if it contains a timestamp, or updatedAt
-                          const dateStr = item.createdAt || item.updatedAt;
-                          if (!dateStr) return '未知时间';
-                          const d = new Date(dateStr);
-                          return d.toString() !== 'Invalid Date' ? d.toLocaleDateString() : dateStr.split('T')[0];
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Milestone: Start */}
-                  {item.startDate && (
-                    <div className="relative">
-                      <div className="absolute -left-[23px] top-1 w-2.5 h-2.5 bg-zinc-100 dark:bg-[#191b1e] border-2 border-amber-400/40 dark:border-amber-500/40 rounded-full z-10" />
-                      <div className="space-y-0.5">
-                        <div className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">首次标注：开始阅读/观影</div>
-                        <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">{item.startDate}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Milestone: Completed */}
-                  {item.status === 'completed' && (
-                    <div className="relative">
-                      <div className="absolute -left-[23px] top-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-emerald-500/20 rounded-full z-10 shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
-                      <div className="space-y-0.5">
-                        <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
-                          <span>标注结案：已阅毕</span>
-                          <Sparkles size={10} />
-                        </div>
-                        <div className="text-xs font-mono font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
-                          {item.completedDate || '未知日期'}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* History / Re-reads as sub-milestones (Shown regardless of status if they exist) */}
-                  {item.reReadLogs && item.reReadLogs.length > 0 && (
-                    <div className="relative space-y-4">
-                      <div className="space-y-3 pt-2">
-                        {item.reReadLogs.map((log, idx) => {
-                            const isExpanded = expandedLogs[log.id];
-                            return (
-                              <div key={log.id || idx} className="relative pl-4">
-                                {/* Sub-node connector line */}
-                                <div className="absolute left-[-15px] top-[-10px] bottom-1.5 w-[1px] bg-emerald-100 dark:bg-emerald-900/30" />
-                                <div className="absolute left-[-15px] top-1.5 w-3 h-[1px] bg-emerald-100 dark:bg-emerald-900/30" />
-                                <div className="absolute left-[-1.5px] top-1.5 w-1.5 h-1.5 bg-emerald-500/40 rounded-full" />
-                                
-                                <div className="space-y-1">
-                                  <div 
-                                    onClick={() => toggleLog(log.id)}
-                                    className="flex items-center justify-between cursor-pointer group/node"
-                                  >
-                                    <div className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-tighter flex items-center gap-2 group-hover/node:text-emerald-500 transition-colors">
-                                      重温回顾 #{item.reReadLogs.length - idx} • {log.date}
-                                      {log.watchedWith && (
-                                        <span className="flex items-center gap-1 opacity-70">
-                                          <Users size={8} />
-                                          {log.watchedWith}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <ChevronDown 
-                                      size={10} 
-                                      className={`text-zinc-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} 
-                                    />
-                                  </div>
-                                  
-                                  <AnimatePresence>
-                                    {isExpanded && (
-                                      <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        className="overflow-hidden"
-                                      >
-                                        {log.note ? (
-                                          <div className="text-[10px] mt-1 leading-relaxed text-zinc-500 dark:text-zinc-400 italic bg-emerald-500/5 dark:bg-emerald-500/10 border-l border-emerald-500/20 p-2 font-sans">
-                                            "{log.note}"
-                                          </div>
-                                        ) : (
-                                          <div className="text-[9px] mt-1 text-zinc-400 italic font-sans pl-2">
-                                            未记录心得
-                                          </div>
-                                        )}
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
 
-          {/* Right Block: Interactive Note review & Re-watch Logs */}
-          <div className="md:col-span-8 flex flex-col h-full space-y-5">
-            
-            {/* Companion Records Section */}
-            <div className="flex flex-col p-5 bg-emerald-50/30 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-serif font-bold tracking-tight text-[#4A3B32] dark:text-[#DDDAC4] uppercase">
-                      同看记录
-                    </span>
-                    <Users size={18} className="text-emerald-500" />
-                  </div>
-                  <span className="text-[11px] text-zinc-500 mt-1">记录共同观赏的伙伴与珍贵瞬间</span>
+            {/* Timeline Summary */}
+            <div className="pt-6 border-t border-[#dcd6cb] dark:border-zinc-800 space-y-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">档案摘要 / ARCHIVAL</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">录入日期</span>
+                  <span className="text-[12px] text-zinc-600 dark:text-zinc-300">
+                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                  </span>
                 </div>
-              </div>
-
-              <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="space-y-1.5">
-                   <div className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
-                    <span>同看人</span>
-                  </div>
-                  <input 
-                    type="text"
-                    placeholder="备注同看伙伴..."
-                    value={item.watchedWith || ''}
-                    onChange={(e) => onUpdateItem({ ...item, watchedWith: e.target.value || undefined, updatedAt: new Date().toISOString() })}
-                    className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-emerald-500 focus:outline-none py-1 text-zinc-800 dark:text-zinc-200"
-                  />
+                <div className="space-y-1">
+                  <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">当前状态</span>
+                  <span className="text-[12px] font-bold text-emerald-600 dark:text-emerald-500 uppercase">
+                    {item.status === 'completed' ? '已结案' : item.status === 'progress' ? '进行中' : item.status === 'paused' ? '已搁置' : '想看清单'}
+                  </span>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
-                    <span>同看地点</span>
+                {item.startDate && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">开启日期</span>
+                    <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.startDate}</span>
                   </div>
-                  <input 
-                    type="text"
-                    placeholder="地点/场合..."
-                    value={item.watchedWithLocation || ''}
-                    onChange={(e) => onUpdateItem({ ...item, watchedWithLocation: e.target.value || undefined, updatedAt: new Date().toISOString() })}
-                    className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-emerald-500 focus:outline-none py-1 text-zinc-800 dark:text-zinc-200"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
-                    <span>同看体验</span>
+                )}
+                {item.completedDate && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">结案日期</span>
+                    <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.completedDate}</span>
                   </div>
-                  <input 
-                    type="text"
-                    placeholder="评价本次同看..."
-                    value={item.watchedWithExperience || ''}
-                    onChange={(e) => onUpdateItem({ ...item, watchedWithExperience: e.target.value || undefined, updatedAt: new Date().toISOString() })}
-                    className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-emerald-500 focus:outline-none py-1 text-zinc-800 dark:text-zinc-200"
-                  />
-                </div>
+                )}
               </div>
             </div>
+          </div>
 
-            {/* Interactive Rating Bar */}
-            <div className="flex flex-col p-4 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-serif font-bold tracking-tight text-zinc-800 dark:text-zinc-200 uppercase">
-                      个人评分
-                    </span>
-                    {rating > 0 && <span className="text-xl">{rating >= 8 ? '❤️' : '💢'}</span>}
-                  </div>
-                  <span className="text-[10px] text-zinc-500 mt-0.5">评分将同步显示在卡片右上角</span>
-                </div>
-                <div className="flex items-center gap-2.5 flex-wrap">
+          {/* RIGHT: Editable details and logs (9/12) */}
+          <div className="md:col-span-9 flex flex-col space-y-6">
+            {/* Top Row: Preference & Companion */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 bg-[#FAF8F5] dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2d3137] flex flex-col justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 mb-3 block font-serif">评价 / RATING</span>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleBinaryRatingClick('like')}
-                    className={`px-3 py-1.5 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    className={`flex-1 py-1.5 text-[12px] font-bold transition-all border rounded-none cursor-pointer font-serif ${
                       rating === 10
-                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30'
-                        : 'bg-white dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-red-500 hover:border-red-500/20'
+                        ? 'bg-[#4A3B32] text-[#FBF9F3] border-[#4A3B32] dark:bg-[#DDDAC4] dark:text-[#111214] dark:border-[#DDDAC4] shadow-sm'
+                        : 'bg-white hover:bg-zinc-50 dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800'
                     }`}
                   >
-                    <span className="text-sm">❤️</span>
-                    <span>好看</span>
+                    ❤️ 好看
                   </button>
                   <button
                     type="button"
                     onClick={() => handleBinaryRatingClick('dislike')}
-                    className={`px-3 py-1.5 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    className={`flex-1 py-1.5 text-[12px] font-bold transition-all border rounded-none cursor-pointer font-serif ${
                       rating === 1
-                        ? 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30'
-                        : 'bg-white dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-600 hover:border-zinc-500/20'
+                        ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-200 shadow-sm'
+                        : 'bg-white hover:bg-zinc-50 dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800'
                     }`}
                   >
-                    <span className="text-sm">💢</span>
-                    <span>不好看</span>
+                    💢 一般
                   </button>
-                  {rating > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRating(0);
-                        const updated = { ...item, personalRating: 0, updatedAt: new Date().toISOString() };
-                        onUpdateItem(updated);
-                      }}
-                      className="px-2 py-1.5 text-[10px] text-zinc-400 hover:text-red-400 hover:bg-zinc-200/40 dark:hover:bg-zinc-800/40 rounded-md transition-all cursor-pointer font-medium"
-                    >
-                      重置
-                    </button>
-                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Tabs Selector */}
-            <div className="flex border-b border-[#dcd6cb] dark:border-[#2d3137]">
-              <button
-                onClick={() => setActiveTab('note')}
-                className={`py-2 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer rounded-none uppercase tracking-wider ${
-                  activeTab === 'note'
-                    ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-                }`}
-              >
-                笔记及评价
-              </button>
-              <button
-                onClick={() => setActiveTab('reread')}
-                className={`py-2 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer rounded-none uppercase tracking-wider ${
-                  activeTab === 'reread'
-                    ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-                }`}
-              >
-                <History size={12} />
-                <span>重温记录 ({item.reReadCount})</span>
-              </button>
-            </div>
-
-            {/* TAB CONTENT: Review & Image Paste */}
-            {activeTab === 'note' && (
-              <div className="space-y-4 flex-grow flex flex-col">
-                <div className="flex-grow">
-                  <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-1">个人笔记（支持粘贴图片）</label>
-                  <textarea
-                    placeholder="在这里记录您的感悟、引用或想法..."
-                    value={noteText}
-                    onPaste={handlePaste}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    rows={8}
-                    className="w-full text-xs bg-white dark:bg-zinc-950/40 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-900 dark:text-zinc-200 rounded-none p-3.5 focus:outline-none focus:border-zinc-500 resize-none leading-relaxed font-sans"
-                  />
-                </div>
-
-                {/* Upload Image Section */}
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">附件图片</span>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={imageUploading}
-                      className="text-[10px] text-zinc-700 dark:text-zinc-300 flex items-center gap-1 hover:text-black dark:hover:text-white transition-colors cursor-pointer font-bold uppercase tracking-wider"
-                    >
-                      {imageUploading ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Camera size={12} />
-                      )}
-                      <span>上传图片</span>
-                    </button>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      accept="image/*"
-                      className="hidden"
+              <div className="p-4 bg-[#FAF8F5] dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2d3137]">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 mb-3 block font-serif">一同 / TOGETHER</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-400 uppercase tracking-widest font-bold font-serif">与谁一同</label>
+                    <input 
+                      type="text"
+                      placeholder="谁..."
+                      value={item.watchedWith || ''}
+                      onChange={(e) => onUpdateItem({ ...item, watchedWith: e.target.value || undefined, updatedAt: new Date().toISOString() })}
+                      className="w-full text-[12px] bg-transparent border-b border-zinc-200 dark:border-zinc-800 py-1 focus:outline-none focus:border-zinc-400 font-serif"
                     />
                   </div>
-
-                  {/* Note Images Thumbnails Grid */}
-                  {noteImages.length > 0 ? (
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 p-3 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-none border border-[#dcd6cb] dark:border-[#2d3137]">
-                      {noteImages.map((img, idx) => (
-                        <div key={idx} className="relative aspect-square rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] group bg-zinc-950">
-                          <img src={img} className="w-full h-full object-cover" alt="attachment" />
-                          <button
-                            onClick={() => handleRemoveImage(idx)}
-                            className="absolute top-1 right-1 p-0.5 bg-black/60 rounded-none text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-300 transition-all cursor-pointer"
-                          >
-                            <X size={10} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="py-4 text-center border border-dashed border-[#dcd6cb] dark:border-[#2d3137] rounded-none text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
-                      暂无附件。支持从剪贴板粘贴或手动上传。
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    onClick={handleSaveNote}
-                    disabled={isSavingNote}
-                    className="px-4.5 py-2 text-xs font-bold uppercase tracking-widest bg-[#4A3B32] hover:bg-[#382B24] dark:bg-[#DDDAC4] dark:hover:bg-white text-[#FBF9F3] dark:text-[#111214] transition-all rounded-none cursor-pointer flex items-center gap-2"
-                  >
-                    {isSavingNote ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <CheckCircle2 size={12} />
-                    )}
-                    <span>保存笔记</span>
-                  </button>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-400 uppercase tracking-widest font-bold font-serif">何处一同</label>
+                    <input 
+                      type="text"
+                      placeholder="何地..."
+                      value={item.watchedWithLocation || ''}
+                      onChange={(e) => onUpdateItem({ ...item, watchedWithLocation: e.target.value || undefined, updatedAt: new Date().toISOString() })}
+                      className="w-full text-[12px] bg-transparent border-b border-zinc-200 dark:border-zinc-800 py-1 focus:outline-none focus:border-zinc-400 font-serif"
+                    />
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* TAB CONTENT: Multiple Re-read/Re-watch Logs */}
-            {activeTab === 'reread' && (
-              <div className="space-y-4 flex-grow flex flex-col">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block">历史记录</span>
-                  <button
-                    onClick={() => setShowRereadForm(!showRereadForm)}
-                    className="text-xs text-zinc-700 dark:text-zinc-300 flex items-center gap-1 hover:text-black dark:hover:text-white transition-colors cursor-pointer font-bold uppercase tracking-wider"
-                  >
-                    <Plus size={14} /> 记录重温
-                  </button>
-                </div>
+            {/* Interactive Tabs */}
+            <div className="flex flex-col space-y-4 flex-grow">
+              <div className="flex border-b border-[#dcd6cb] dark:border-[#2d3137]">
+                <button
+                  onClick={() => setActiveTab('note')}
+                  className={`py-2 px-6 text-[12px] font-bold border-b-2 transition-all cursor-pointer rounded-none uppercase tracking-widest font-serif ${
+                    activeTab === 'note'
+                      ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
+                      : 'border-transparent text-zinc-400 hover:text-zinc-700'
+                  }`}
+                >
+                  个人感悟 / NOTES
+                </button>
+                <button
+                  onClick={() => setActiveTab('reread')}
+                  className={`py-2 px-6 text-[12px] font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer rounded-none uppercase tracking-widest font-serif ${
+                    activeTab === 'reread'
+                      ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
+                      : 'border-transparent text-zinc-400 hover:text-zinc-700'
+                  }`}
+                >
+                  <History size={12} />
+                  <span>重温记录 ({item.reReadCount})</span>
+                </button>
+              </div>
 
-                {/* Form to log re-read */}
-                {showRereadForm && (
-                  <form onSubmit={handleAddReread} className="p-4 bg-white/60 dark:bg-zinc-900/40 border border-[#dcd6cb] dark:border-[#2d3137] rounded-none space-y-3.5 animate-fade-in">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-1">重温日期</label>
-                        <input
-                          type="date"
-                          required
-                          value={rereadDate}
-                          onChange={(e) => setRereadDate(e.target.value)}
-                          className="w-full text-xs bg-[#fbf9f3] dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 focus:outline-none font-mono"
-                        />
-                      </div>
-                    </div>
+              <div className="flex-grow min-h-[300px]">
+                {activeTab === 'note' ? (
+                  <div className="space-y-5 animate-fade-in flex flex-col h-full">
+                    <textarea
+                      placeholder="记录此刻的心情、引用或深度思考..."
+                      value={noteText}
+                      onPaste={handlePaste}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      className="w-full flex-grow text-[14px] bg-[#fdfdfd] dark:bg-zinc-950/20 border border-[#dcd6cb] dark:border-zinc-800 text-zinc-900 dark:text-zinc-200 rounded-none p-5 focus:outline-none focus:ring-1 focus:ring-zinc-300 dark:focus:ring-zinc-700 resize-none leading-relaxed font-serif shadow-inner"
+                    />
 
-                    <div>
-                      <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-1">感悟笔记</label>
-                      <textarea
-                        placeholder="重温感悟..."
-                        value={rereadNote}
-                        onChange={(e) => setRereadNote(e.target.value)}
-                        rows={3}
-                        className="w-full text-xs bg-[#fbf9f3] dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 focus:outline-none focus:border-zinc-500 resize-none leading-relaxed"
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowRereadForm(false)}
-                        className="px-2.5 py-1 text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-400 dark:hover:text-zinc-200"
-                      >
-                        取消
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-3 py-1 text-xs bg-[#4A3B32] hover:bg-[#382B24] dark:bg-[#DDDAC4] dark:hover:bg-white text-[#FBF9F3] dark:text-[#111214] rounded-none transition-all cursor-pointer font-bold uppercase tracking-widest"
-                      >
-                        添加记录
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* List of Re-read logs */}
-                <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1 font-mono text-zinc-800 dark:text-zinc-200">
-                  {item.reReadLogs && item.reReadLogs.length > 0 ? (
-                    item.reReadLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="p-3.5 bg-[#fbf9f3] dark:bg-zinc-900/40 border border-[#dcd6cb] dark:border-[#2d3137] rounded-none space-y-2 group relative text-xs"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 flex items-center gap-1 uppercase tracking-wider">
-                            <Calendar size={10} />
-                            <span>日期: {log.date}</span>
-                          </span>
-                          <button
-                            onClick={() => handleDeleteReread(log.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 transition-opacity cursor-pointer rounded-none"
+                    {/* Image Attachments Gallery */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">附件图片 / ATTACHMENTS</span>
+                        <div className="flex items-center gap-2">
+                           {imageUploading && <Loader2 size={12} className="animate-spin text-zinc-400" />}
+                           <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-[11px] font-bold text-[#4A3B32] dark:text-[#DDDAC4] hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            <Trash2 size={12} />
+                            <Camera size={12} />
+                            添加多张图片
                           </button>
                         </div>
-                        {log.note ? (
-                          <p className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed italic pl-1 font-sans">
-                            “ {log.note} ”
-                          </p>
-                        ) : (
-                          <p className="text-[10px] text-zinc-400 dark:text-zinc-500 italic pl-1 font-sans">暂无笔记内容。</p>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-3">
+                        {noteImages.map((img, idx) => (
+                          <div 
+                            key={idx} 
+                            className="relative w-20 h-20 bg-zinc-100 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-zinc-800 group cursor-pointer overflow-hidden"
+                            onClick={() => setFullscreenImageIndex(idx)}
+                          >
+                            <img src={img} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt={`attachment-${idx}`} />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRemoveImage(idx); }}
+                              className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-500"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+                        {noteImages.length === 0 && !imageUploading && (
+                          <div className="w-full py-8 border border-dashed border-zinc-200 dark:border-zinc-800 flex flex-col items-center justify-center text-zinc-400 space-y-2">
+                             <Camera size={20} className="opacity-20" />
+                             <span className="text-[10px] uppercase tracking-widest">暂无附件图片</span>
+                          </div>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-10 text-xs text-zinc-400 dark:text-zinc-500 border border-dashed border-[#dcd6cb] dark:border-[#2d3137] rounded-none font-sans uppercase tracking-widest">
-                      暂无重温历史记录。
+                      <input
+                        type="file"
+                        multiple
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/*"
+                        className="hidden"
+                      />
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Add Re-read Form */}
+                    <div className="p-5 bg-zinc-50 dark:bg-[#111214] border border-[#dcd6cb] dark:border-zinc-800 space-y-4">
+                      <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">新增重温记录</div>
+                      <form onSubmit={handleAddReRead} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温日期</label>
+                            <input 
+                              type="date" 
+                              value={reReadDate}
+                              onChange={(e) => setReReadDate(e.target.value)}
+                              className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 outline-none focus:border-zinc-400 font-serif"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">与谁一同</label>
+                            <input 
+                              type="text"
+                              placeholder="与谁一起..."
+                              value={reReadWatchedWith}
+                              onChange={(e) => setReReadWatchedWith(e.target.value)}
+                              className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-zinc-400 font-serif"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温心得</label>
+                          <textarea 
+                            placeholder="这次有什么不同的感悟吗？"
+                            value={reReadNote}
+                            onChange={(e) => setReReadNote(e.target.value)}
+                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 min-h-[80px] focus:outline-none focus:border-zinc-400 resize-none font-serif"
+                          />
+                        </div>
+                        <button 
+                          type="submit"
+                          className="w-full py-2.5 bg-[#4A3B32] dark:bg-[#DDDAC4] text-white dark:text-[#111214] text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 transition-opacity"
+                        >
+                          确认添加 / ADD LOG
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Records List */}
+                    <div className="space-y-3">
+                      {item.reReadLogs && item.reReadLogs.length > 0 ? (
+                        item.reReadLogs.map((log, idx) => (
+                          <div key={log.id || idx} className="p-4 border border-[#dcd6cb] dark:border-zinc-800 bg-white dark:bg-[#15171a] space-y-2 group">
+                             <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                   <span className="text-[10px] font-bold text-zinc-400">#{item.reReadLogs.length - idx}</span>
+                                   <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{log.date}</span>
+                                   {log.watchedWith && (
+                                     <span className="flex items-center gap-1.5 text-[10px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-wider">
+                                       <Users size={10} />
+                                       {log.watchedWith}
+                                     </span>
+                                   )}
+                                </div>
+                                <button 
+                                  onClick={() => handleDeleteReRead(log.id)}
+                                  className="p-1.5 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                             </div>
+                             {log.note && (
+                               <p className="text-[13px] text-zinc-600 dark:text-zinc-400 italic leading-relaxed font-serif border-l-2 border-zinc-100 dark:border-zinc-800 pl-3">
+                                 "{log.note}"
+                               </p>
+                             )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-12 border border-dashed border-zinc-200 dark:border-zinc-800 text-center space-y-2 opacity-50">
+                           <History size={24} className="mx-auto" />
+                           <div className="text-[10px] font-bold uppercase tracking-widest">暂无重温记录</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Image Fullscreen Carousel Overlay */}
+      <AnimatePresence>
+        {fullscreenImageIndex !== null && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center select-none"
+            onClick={() => setFullscreenImageIndex(null)}
+          >
+            <div className="absolute top-6 right-6 flex items-center gap-6">
+               <span className="text-white/40 text-sm tracking-widest">
+                 {fullscreenImageIndex + 1} / {noteImages.length}
+               </span>
+               <button className="text-white hover:text-red-500 transition-colors cursor-pointer"><X size={28} /></button>
+            </div>
+
+            {/* Navigation Buttons */}
+            {noteImages.length > 1 && (
+              <>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFullscreenImageIndex(prev => (prev! === 0 ? noteImages.length - 1 : prev! - 1));
+                  }}
+                  className="absolute left-6 top-1/2 -translate-y-1/2 p-4 text-white hover:bg-white/10 transition-colors cursor-pointer rounded-full"
+                >
+                  <ChevronDown size={32} className="rotate-90" />
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFullscreenImageIndex(prev => (prev! === noteImages.length - 1 ? 0 : prev! + 1));
+                  }}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 p-4 text-white hover:bg-white/10 transition-colors cursor-pointer rounded-full"
+                >
+                  <ChevronDown size={32} className="-rotate-90" />
+                </button>
+              </>
             )}
 
-          </div>
-
-        </div>
-
-      </div>
+            <motion.img 
+              key={fullscreenImageIndex}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              src={noteImages[fullscreenImageIndex]} 
+              className="max-w-[90vw] max-h-[90vh] object-contain shadow-2xl"
+              alt="fullscreen-view"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -510,7 +510,7 @@ export default function MediaDetailModal({
                                 </button>
                              </div>
                              {log.note && (
-                               <p className="text-[13px] text-zinc-600 dark:text-zinc-400 italic leading-relaxed font-serif border-l-2 border-zinc-100 dark:border-zinc-800 pl-3">
+                               <p className="text-[12px] text-zinc-600 dark:text-zinc-400 italic leading-relaxed font-serif border-l-2 border-zinc-100 dark:border-zinc-800 pl-3">
                                  "{log.note}"
                                </p>
                              )}

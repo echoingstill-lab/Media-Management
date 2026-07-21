@@ -260,7 +260,7 @@ export default function WishlistSection({
           <div className="flex items-center gap-3">
             <div>
               <h2 className="font-bold tracking-tight uppercase text-zinc-800 dark:text-zinc-100 flex flex-wrap items-baseline gap-3">
-                <span className="font-serif text-2xl font-bold text-[#4A3B32] dark:text-[#DDDAC4] leading-none">
+                <span className="font-serif text-xl font-bold text-[#4A3B32] dark:text-[#DDDAC4] leading-none">
                   {formatChineseMonth(monthStr)}
                 </span>
                 
@@ -350,7 +350,7 @@ export default function WishlistSection({
                       <div className="flex items-center justify-between p-3.5 bg-[#FAF8F5] dark:bg-[#15171a] border-b border-[#E6E0D5] dark:border-[#2D3137]">
                         <div className="flex items-center gap-2">
                           {categoryIcons[type]}
-                          <span className="text-sm font-serif font-bold tracking-wider text-[#4A3B32] dark:text-zinc-200">
+                          <span className="text-[13px] font-serif font-bold tracking-wider text-[#4A3B32] dark:text-zinc-200">
                             {MEDIA_TYPE_LABELS[type]}
                           </span>
                         </div>
@@ -447,7 +447,7 @@ export default function WishlistSection({
                                   <div className="flex flex-col min-w-0 flex-grow py-0.5 justify-center">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <span 
-                                        className={`text-[13px] font-semibold transition-all truncate leading-none ${
+                                        className={`text-[12px] font-semibold transition-all truncate leading-none ${
                                           item.status === 'progress' 
                                             ? 'text-amber-700 dark:text-amber-400 font-bold' 
                                             : 'text-[#2B1E19] dark:text-zinc-100'
@@ -562,7 +562,7 @@ export default function WishlistSection({
                                   </div>
                                   <div className="flex flex-col min-w-0 flex-grow py-0.5 justify-center">
                                     <div className="flex items-center gap-1.5 min-w-0">
-                                      <span className="line-through truncate text-zinc-400 dark:text-zinc-500 font-medium text-[12px]">
+                                      <span className="line-through truncate text-zinc-400 dark:text-zinc-500 font-medium text-[11px]">
                                         {item.title}
                                       </span>
                                     </div>

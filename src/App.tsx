@@ -75,11 +75,10 @@ export default function App() {
 
   const handleMediaContextMenu = (e: React.MouseEvent, itemId: string) => {
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    // Align exactly to the top left of the card for a perfectly "boxed" feel
+    // Follow the cursor for precise positioning
     setCollectionContextMenu({ 
-      x: rect.left, 
-      y: rect.top, 
+      x: e.clientX, 
+      y: e.clientY, 
       itemId 
     });
   };

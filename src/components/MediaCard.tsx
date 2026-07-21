@@ -130,7 +130,7 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
         {/* Tall, super-smooth seamless vignette gradient overlay */}
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/80 to-transparent p-4 pt-24 flex flex-col justify-end text-white select-none">
           {/* Title */}
-          <h4 className="text-white font-bold text-sm sm:text-base line-clamp-1 leading-snug tracking-tight font-serif">
+          <h4 className="text-white font-bold text-[13px] line-clamp-1 leading-snug tracking-tight font-serif">
             {item.title}
           </h4>
 
@@ -195,17 +195,17 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
               className="w-2.5 h-2.5 rounded-none bg-emerald-400 border border-zinc-950/60 shadow-md relative group/dot cursor-help transition-transform hover:scale-125"
             >
               {/* Tooltip on hover */}
-              <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-950/95 border border-zinc-800 text-white rounded-none p-3 text-xs w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
-                <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center justify-between uppercase tracking-wider">
+              <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-950/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
+                <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center justify-between uppercase tracking-wider text-[10px]">
                   <span>重温 {index + 1}</span>
-                  <span className="font-serif text-[11px] text-zinc-400 font-normal">{log.date}</span>
+                  <span className="font-serif text-[10px] text-zinc-400 font-normal">{log.date}</span>
                 </div>
                 {log.note ? (
-                   <p className="text-zinc-300 font-serif leading-relaxed text-xs break-words whitespace-normal">
+                   <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal">
                     "{log.note}"
                   </p>
                 ) : (
-                  <span className="text-zinc-500 italic font-serif text-xs">无温读备注</span>
+                  <span className="text-zinc-500 italic font-serif text-[10px]">无温读备注</span>
                 )}
               </div>
             </div>

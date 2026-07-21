@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS } from '../types';
 
 interface MediaEditModalProps {
@@ -29,6 +29,7 @@ export default function MediaEditModal({
   const [progressText, setProgressText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [completedDate, setCompletedDate] = useState('');
+  const [watchedWith, setWatchedWith] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState('');
   const [selectedColIds, setSelectedColIds] = useState<string[]>([]);
@@ -108,6 +109,7 @@ export default function MediaEditModal({
       setProgressText(item.progressText || '');
       setStartDate(item.startDate || '');
       setCompletedDate(item.completedDate || '');
+      setWatchedWith(item.watchedWith || '');
       setSelectedTags(item.tags || []);
       setSelectedColIds(item.collections || []);
       setWishlistMonth(item.wishlistMonth || '');
@@ -123,6 +125,7 @@ export default function MediaEditModal({
       setProgressText('');
       setStartDate('');
       setCompletedDate('');
+      setWatchedWith('');
       setSelectedTags([]);
       setSelectedColIds([]);
       setWishlistMonth(getCurrentMonthStr());
@@ -217,6 +220,7 @@ export default function MediaEditModal({
       progressText: status === 'progress' ? progressText.trim() : '',
       startDate: startDate || undefined,
       completedDate: status === 'completed' ? completedDate : undefined,
+      watchedWith: watchedWith.trim() || undefined,
       reReadCount: item?.reReadCount || 0,
       reReadLogs: item?.reReadLogs || [],
       personalRating: item?.personalRating || 0,
@@ -451,7 +455,7 @@ export default function MediaEditModal({
                     </div>
                   )}
 
-                  {/* Dates */}
+                  {/* Dates & Together */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
@@ -479,6 +483,20 @@ export default function MediaEditModal({
                         className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2 py-1.5 focus:outline-none focus:border-[#635C56] font-mono disabled:opacity-30"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                      <Users size={10} />
+                      <span>共同观看/阅读 (备注对象)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="例如：家人、张三、小明..."
+                      value={watchedWith}
+                      onChange={(e) => setWatchedWith(e.target.value)}
+                      className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 focus:outline-none focus:border-[#635C56]"
+                    />
                   </div>
 
                   {/* Description */}

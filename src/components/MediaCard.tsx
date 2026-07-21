@@ -5,17 +5,18 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles } from 'lucide-react';
+import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 
 interface MediaCardProps {
   key?: React.Key;
   item: MediaItem;
   onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent, itemId: string) => void;
   onQuickRate?: (itemId: string, rating: number) => void;
 }
 
-export default function MediaCard({ item, onClick }: MediaCardProps) {
+export default function MediaCard({ item, onClick, onContextMenu }: MediaCardProps) {
   const typeLabel = MEDIA_TYPE_LABELS[item.type];
 
   const isLiked = item.personalRating >= 8; // rating >= 8 is recommended
@@ -103,21 +104,25 @@ export default function MediaCard({ item, onClick }: MediaCardProps) {
   return (
     <div
       onClick={onClick}
+      onContextMenu={(e) => onContextMenu?.(e, item.id)}
       id={`media-card-${item.id}`}
       className="group relative w-full rounded-none border border-[#E6E0D5] dark:border-[#2d3137] hover:border-[#4A3B32] dark:hover:border-[#e3e4e6] bg-white dark:bg-[#191b1e] transition-all duration-300 cursor-pointer break-inside-avoid inline-block mb-0 animate-fade-in shadow-sm hover:shadow-md z-10 hover:z-50"
     >
       {/* Cover Container */}
-      <div className={`relative ${aspectClass} w-full overflow-hidden`}>
-        <img
-          src={item.coverUrl}
-          alt={item.title}
-          referrerPolicy="no-referrer"
-          loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
-          onError={(e) => {
-            e.currentTarget.src = `https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=300&auto=format&fit=crop`;
-          }}
-        />
+      <div className={`relative ${aspectClass} w-full`}>
+        {/* Image wrapper with overflow hidden for zoom effect */}
+        <div className="absolute inset-0 overflow-hidden">
+          <img
+            src={item.coverUrl}
+            alt={item.title}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
+            onError={(e) => {
+              e.currentTarget.src = `https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=300&auto=format&fit=crop`;
+            }}
+          />
+        </div>
 
         {/* Subtle, highly premium top gradient vignette to support floating badges */}
         <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/75 via-black/35 to-transparent pointer-events-none z-10" />
@@ -129,14 +134,49 @@ export default function MediaCard({ item, onClick }: MediaCardProps) {
             {item.title}
           </h4>
 
-          {/* Creator & Media Type Tag with Icon */}
-          <div className="flex items-center justify-between mt-1.5 text-xs text-zinc-400 font-mono tracking-wider uppercase">
-            <span className="line-clamp-1 max-w-[62%] opacity-90 font-medium">
+          {/* Creator & Media Type Icon */}
+          <div className="flex items-center justify-between mt-1.5 text-xs text-zinc-400">
+            <span className="line-clamp-1 max-w-[80%] opacity-80 font-medium font-mono tracking-wider uppercase">
               {item.creator || '佚名'}
             </span>
-            <span className="shrink-0 text-zinc-200 border border-zinc-850 bg-zinc-950/90 px-2 py-0.5 text-xs font-bold flex items-center gap-1 rounded-sm">
-              {getTypeIcon(item.type)}
-              <span>{typeLabel}</span>
+            <span className="shrink-0 flex items-center gap-2">
+              {(item.watchedWith || item.reReadLogs?.some(log => log.watchedWith)) && (
+                <div className="relative group/user-tooltip">
+                  <Users size={12} className="text-emerald-400 drop-shadow-[0_0_2px_rgba(52,211,153,0.5)] cursor-help" />
+                  <div className="absolute bottom-full right-0 mb-3 hidden group-hover/user-tooltip:block bg-zinc-950/98 border border-zinc-700 text-white rounded-none p-3 text-xs w-64 shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-[9999] pointer-events-none transition-all animate-fade-in origin-bottom-right">
+                    <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-2.5 flex items-center justify-between uppercase tracking-wider text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <Users size={10} />
+                        <span>归档回顾 / ARCHIVE REVIEW</span>
+                      </div>
+                      <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-sm font-mono text-[9px]">
+                        {typeLabel}
+                      </span>
+                    </div>
+                    <div className="space-y-2.5 text-[11px] font-sans">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-zinc-500 uppercase text-[9px] font-bold">同看伴侣 / COMPANION</span>
+                        <span className="text-zinc-200 border-l-2 border-emerald-500/30 pl-2 ml-0.5">{item.watchedWith || '个人独享'}</span>
+                      </div>
+                      {item.watchedWithLocation && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-zinc-500 uppercase text-[9px] font-bold">记录地点 / LOCATION</span>
+                          <span className="text-zinc-200 border-l-2 border-zinc-700 pl-2 ml-0.5">{item.watchedWithLocation}</span>
+                        </div>
+                      )}
+                      {item.watchedWithExperience && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-zinc-500 uppercase text-[9px] font-bold">同看体验 / EXPERIENCE</span>
+                          <span className="text-zinc-200 border-l-2 border-zinc-700 pl-2 ml-0.5 italic leading-relaxed">{item.watchedWithExperience}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <span className="text-zinc-400/60 group-hover:text-zinc-300 transition-colors">
+                {getTypeIcon(item.type)}
+              </span>
             </span>
           </div>
         </div>

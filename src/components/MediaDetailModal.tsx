@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost } from 'lucide-react';
+import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown } from 'lucide-react';
 import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS } from '../types';
 import { compressImage } from '../utils/helpers';
 
@@ -149,30 +149,60 @@ export default function MediaDetailModal({
     }
   };
 
+  const [showAddReRead, setShowAddReRead] = useState(false);
+  const [reReadDate, setReReadDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reReadNote, setReReadNote] = useState('');
+  const [reReadWatchedWith, setReReadWatchedWith] = useState('');
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+
+  const toggleLog = (id: string) => {
+    setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleAddReRead = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: reReadDate,
+      note: reReadNote.trim() || undefined,
+      watchedWith: reReadWatchedWith.trim() || undefined
+    } as ReReadLog;
+    
+    const updatedItem = {
+      ...item,
+      reReadLogs: [newLog, ...(item.reReadLogs || [])]
+    };
+    
+    onUpdateItem(updatedItem);
+    setShowAddReRead(false);
+    setReReadNote('');
+    setReReadWatchedWith('');
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/40 dark:bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#191b1e] border border-[#dcd6cb] dark:border-[#2d3137] rounded-none w-full max-w-4xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in text-zinc-800 dark:text-zinc-300">
+      <div className="bg-white dark:bg-[#191b1e] border border-[#dcd6cb] dark:border-[#2d3137] rounded-none w-full max-w-5xl shadow-2xl overflow-hidden max-h-[96vh] min-h-[85vh] flex flex-col animate-fade-in text-zinc-800 dark:text-zinc-300">
         
         {/* Modal Header */}
-        <div className="p-4 border-b border-[#dcd6cb] dark:border-[#2d3137] flex items-center justify-between bg-[#fbf9f3] dark:bg-[#111214] backdrop-blur-md">
-          <div className="flex items-center gap-2 text-[10px] uppercase font-mono tracking-widest text-zinc-500 dark:text-zinc-400">
+        <div className="p-5 border-b border-[#dcd6cb] dark:border-[#2d3137] flex items-center justify-between bg-[#fbf9f3] dark:bg-[#111214] backdrop-blur-md">
+          <div className="flex items-center gap-2 text-[13px] uppercase font-sans font-bold tracking-wider text-zinc-500 dark:text-zinc-400">
             <span>档案详情 / </span>
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-sm border border-[#dcd6cb] dark:border-[#2d3137]">
-              {item.type === 'book' && <Book size={10} />}
-              {item.type === 'movie' && <Film size={10} />}
-              {item.type === 'tv' && <Tv size={10} />}
-              {item.type === 'music' && <Music size={10} />}
-              {item.type === 'game' && <Gamepad size={10} />}
-              {item.type === 'anime' && <Ghost size={10} />}
-              <span>{MEDIA_TYPE_LABELS[item.type]}</span>
+            <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
+              {item.type === 'book' && <Book size={12} />}
+              {item.type === 'movie' && <Film size={12} />}
+              {item.type === 'tv' && <Tv size={12} />}
+              {item.type === 'music' && <Music size={12} />}
+              {item.type === 'game' && <Gamepad size={12} />}
+              {item.type === 'anime' && <Ghost size={12} />}
+              <span className="font-bold text-sm">{MEDIA_TYPE_LABELS[item.type]}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={onEdit}
-              className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-none transition-all flex items-center gap-1 cursor-pointer border border-[#dcd6cb] dark:border-[#2d3137]"
+              className="px-5 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer border border-[#dcd6cb] dark:border-[#2d3137]"
             >
-              <Edit2 size={12} />
+              <Edit2 size={13} />
               <span>编辑</span>
             </button>
             <button
@@ -181,214 +211,366 @@ export default function MediaDetailModal({
                   onDelete();
                 }
               }}
-              className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold rounded-none transition-all flex items-center gap-1 cursor-pointer"
+              className="px-5 py-2 bg-red-500/5 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer border border-red-500/10"
             >
-              <Trash2 size={12} />
+              <Trash2 size={13} />
               <span>删除</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-none transition-all cursor-pointer"
+              className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-none transition-all cursor-pointer"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Modal Main Body */}
-        <div className="overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8 flex-grow">
+        <div className="overflow-y-auto p-8 grid grid-cols-1 md:grid-cols-12 gap-10 flex-grow">
           
           {/* Left Block: Beautiful Portrait Cover Card & Metadata */}
-          <div className="md:col-span-4 space-y-5">
-            <div className="relative aspect-[2/3] w-full bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] shadow-lg">
-              <img src={item.coverUrl} className="w-full h-full object-cover" alt={item.title} />
+          <div className="md:col-span-4 space-y-6">
+            <div className="relative aspect-[2/3] w-full bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] shadow-xl group">
+              <img src={item.coverUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={item.title} />
+              <div className="absolute inset-0 ring-1 ring-inset ring-white/10" />
             </div>
 
-            <div className="space-y-3.5 bg-[#fbf9f3] dark:bg-[#111214] p-4 rounded-none border border-[#dcd6cb] dark:border-[#2d3137]">
+            <div className="space-y-4">
               <div className="flex flex-wrap items-baseline gap-2">
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 font-sans">{item.title}</h3>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-sans tracking-tight">{item.title}</h3>
                 {item.status === 'progress' && (
-                  <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 font-bold uppercase tracking-wide bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-none align-middle translate-y-[-1px]">
-                    <div className="relative flex items-center justify-center w-2 h-2">
-                      <motion.div 
-                        animate={{ 
-                          scale: [1, 1.6, 1],
-                          opacity: [0.2, 0.5, 0.2]
-                        }}
-                        transition={{ 
-                          repeat: Infinity, 
-                          duration: 2.5, 
-                          ease: "easeInOut" 
-                        }}
-                        className="absolute w-full h-full bg-amber-500 rounded-full" 
-                      />
-                      <motion.div 
-                        animate={{ 
-                          scale: [0.9, 1.1, 0.9],
-                        }}
-                        transition={{ 
-                          repeat: Infinity, 
-                          duration: 2.5, 
-                          ease: "easeInOut" 
-                        }}
-                        className="relative w-1 h-1 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
-                      />
-                    </div>
+                  <span className="flex items-center gap-1.5 text-[9px] px-2 py-0.5 font-bold uppercase tracking-widest bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-none">
+                    <span className="w-1 h-1 bg-amber-500 rounded-full animate-pulse" />
                     进行中
                   </span>
                 )}
                 {item.status === 'completed' && (
-                  <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 font-bold uppercase tracking-wide bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-none align-middle translate-y-[-1px]">
-                    <CheckCircle2 size={10} className="text-emerald-500 dark:text-emerald-400" strokeWidth={3} />
+                  <span className="flex items-center gap-1.5 text-[9px] px-2 py-0.5 font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-none">
+                    <CheckCircle2 size={10} className="fill-emerald-500/10" />
                     已完成
                   </span>
                 )}
-                {item.status === 'wishlist' && (
-                  <span className="text-[10px] px-2 py-0.5 font-bold uppercase tracking-wide bg-sky-500/10 dark:bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-500/20 rounded-none align-middle translate-y-[-1px]">
-                    待阅清单
-                  </span>
-                )}
-                {item.status === 'paused' && (
-                  <span className="text-[10px] px-2 py-0.5 font-bold uppercase tracking-wide bg-stone-500/10 dark:bg-zinc-500/15 text-stone-600 dark:text-zinc-400 border border-stone-500/20 rounded-none align-middle translate-y-[-1px]">
-                    已搁置
-                  </span>
-                )}
               </div>
-              {item.creator && <p className="text-xs text-zinc-500 dark:text-zinc-400">主创人员: {item.creator}</p>}
+              
+              {item.creator && (
+                <div className="text-[13px] text-zinc-500 dark:text-zinc-400 font-sans font-medium uppercase tracking-wider">
+                  {item.creator}
+                </div>
+              )}
+              
+              {item.watchedWith && (
+                <div className="flex items-center gap-2 text-xs font-bold text-[#4A3B32] dark:text-[#DDDAC4] bg-[#4A3B32]/5 dark:bg-[#DDDAC4]/10 p-2 border border-[#4A3B32]/10 dark:border-[#DDDAC4]/10">
+                  <Users size={14} />
+                  <span>共同观看/阅读：{item.watchedWith}</span>
+                </div>
+              )}
               
               {item.description && (
-                <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed border-t border-[#dcd6cb] dark:border-[#2d3137] pt-3 font-sans">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed font-sans opacity-90">
                   {item.description}
                 </p>
               )}
 
               {/* Tag Badges */}
               {item.tags && item.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-2">
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {item.tags.map((tag, idx) => (
                     <span
                       key={idx}
-                      className="text-[9px] px-2 py-0.5 rounded-none bg-white dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-600 dark:text-zinc-400 font-medium"
+                      className="text-[11px] px-2 py-0.5 rounded-none bg-zinc-50 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-500 dark:text-zinc-400 font-mono tracking-tighter"
                     >
-                      {tag}
+                      #{tag}
                     </span>
                   ))}
                 </div>
               )}
 
-              {/* Time stats */}
-              <div className="border-t border-[#dcd6cb] dark:border-[#2d3137] pt-3 space-y-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
-                {item.startDate && (
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={11} className="text-zinc-400 dark:text-zinc-500" />
-                    <span>开始于: {item.startDate}</span>
-                  </div>
+              {/* Redesigned Archival Timeline Section */}
+              <div className="pt-6 border-t border-[#dcd6cb] dark:border-[#2d3137] space-y-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">时间轨迹 / ARCHIVAL LOG</div>
+                  {item.status === 'completed' && !showAddReRead && (
+                    <button 
+                      onClick={() => setShowAddReRead(true)}
+                      className="text-[9px] font-bold text-[#4A3B32] dark:text-[#DDDAC4] hover:underline uppercase tracking-widest cursor-pointer"
+                    >
+                      + 新增重温记录
+                    </button>
+                  )}
+                </div>
+                
+                  {showAddReRead && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-4 bg-zinc-50 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-zinc-800 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">记录一次新的回顾</span>
+                      <button onClick={() => setShowAddReRead(false)} className="text-zinc-400 hover:text-zinc-600"><X size={14} /></button>
+                    </div>
+                    <form onSubmit={handleAddReRead} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-400 uppercase">日期</label>
+                          <input 
+                            type="date" 
+                            value={reReadDate}
+                            onChange={(e) => setReReadDate(e.target.value)}
+                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-400 uppercase">共同观看/阅读 (可选)</label>
+                          <input 
+                            type="text"
+                            placeholder="例如：家人、张三"
+                            value={reReadWatchedWith}
+                            onChange={(e) => setReReadWatchedWith(e.target.value)}
+                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-400 uppercase">感悟或备注</label>
+                        <textarea 
+                          placeholder="感悟或备注 (可选)..."
+                          value={reReadNote}
+                          onChange={(e) => setReReadNote(e.target.value)}
+                          className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 min-h-[60px] focus:outline-none"
+                        />
+                      </div>
+                      <button 
+                        type="submit"
+                        className="w-full py-2 bg-[#4A3B32] dark:bg-[#DDDAC4] text-white dark:text-[#111214] text-[10px] font-bold uppercase tracking-widest"
+                      >
+                        确认记录
+                      </button>
+                    </form>
+                  </motion.div>
                 )}
                 
-                {item.status === 'completed' && (
-                  <div className="space-y-1.5 font-sans">
-                    <button
-                      type="button"
-                      onClick={() => setShowReReadsDropdown(!showReReadsDropdown)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-none border text-xs font-semibold transition-all cursor-pointer ${
-                        item.reReadLogs && item.reReadLogs.length > 0
-                          ? 'bg-emerald-950/40 border-emerald-800/40 text-emerald-300 hover:bg-emerald-900/30 font-bold'
-                          : 'bg-zinc-950/10 border-zinc-900/20 text-zinc-400'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 size={14} className="text-emerald-400 font-bold fill-emerald-400/10" />
-                        <span>已阅毕</span>
-                        {item.completedDate && <span className="opacity-60 text-xs">({item.completedDate})</span>}
-                        {item.reReadLogs && item.reReadLogs.length > 0 && (
-                          <span className="bg-emerald-500/20 text-emerald-400 px-1 py-0.2 rounded-none text-[10px] font-mono font-bold ml-1">
-                            +{item.reReadLogs.length} 次重温
-                          </span>
-                        )}
-                      </div>
-                      {item.reReadLogs && item.reReadLogs.length > 0 && (
-                        <span className="text-xs opacity-60">
-                          {showReReadsDropdown ? '隐藏' : '历史'}
-                        </span>
-                      )}
-                    </button>
+                <div className="relative pl-6 space-y-6">
+                  {/* Vertical line connecting nodes */}
+                  <div className="absolute left-[7px] top-1.5 bottom-1.5 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
 
-                    {showReReadsDropdown && item.reReadLogs && item.reReadLogs.length > 0 && (
-                      <div className="pl-3 border-l border-emerald-800/40 py-1 space-y-1.5 max-h-32 overflow-y-auto animate-fade-in font-sans">
-                        {item.reReadLogs.map((log, idx) => (
-                          <div key={log.id || idx} className="text-xs text-zinc-400 bg-zinc-950/35 p-1 rounded-none border border-zinc-850">
-                            <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                              <span className="font-mono text-xs">重温 #{idx + 1} ({log.date})</span>
-                            </div>
-                            {log.note && <p className="text-xs mt-0.5 text-zinc-300 leading-normal italic pl-3 font-sans">"{log.note}"</p>}
-                          </div>
-                        ))}
+                  {/* Milestone: Entry */}
+                  <div className="relative">
+                    <div className="absolute -left-[23px] top-1 w-2.5 h-2.5 bg-zinc-100 dark:bg-[#191b1e] border-2 border-zinc-300 dark:border-zinc-700 rounded-full z-10" />
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">记录录入 / ARCHIVED AT</div>
+                      <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">
+                        {(() => {
+                          // Prioritize createdAt, fallback to item ID if it contains a timestamp, or updatedAt
+                          const dateStr = item.createdAt || item.updatedAt;
+                          if (!dateStr) return '未知时间';
+                          const d = new Date(dateStr);
+                          return d.toString() !== 'Invalid Date' ? d.toLocaleDateString() : dateStr.split('T')[0];
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Milestone: Start */}
+                  {item.startDate && (
+                    <div className="relative">
+                      <div className="absolute -left-[23px] top-1 w-2.5 h-2.5 bg-zinc-100 dark:bg-[#191b1e] border-2 border-amber-400/40 dark:border-amber-500/40 rounded-full z-10" />
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">首次标注：开始阅读/观影</div>
+                        <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">{item.startDate}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Milestone: Completed */}
+                  {item.status === 'completed' && (
+                    <div className="relative">
+                      <div className="absolute -left-[23px] top-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-emerald-500/20 rounded-full z-10 shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
+                          <span>标注结案：已阅毕</span>
+                          <Sparkles size={10} />
+                        </div>
+                        <div className="text-xs font-mono font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
+                          {item.completedDate || '未知日期'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* History / Re-reads as sub-milestones (Shown regardless of status if they exist) */}
+                  {item.reReadLogs && item.reReadLogs.length > 0 && (
+                    <div className="relative space-y-4">
+                      <div className="space-y-3 pt-2">
+                        {item.reReadLogs.map((log, idx) => {
+                            const isExpanded = expandedLogs[log.id];
+                            return (
+                              <div key={log.id || idx} className="relative pl-4">
+                                {/* Sub-node connector line */}
+                                <div className="absolute left-[-15px] top-[-10px] bottom-1.5 w-[1px] bg-emerald-100 dark:bg-emerald-900/30" />
+                                <div className="absolute left-[-15px] top-1.5 w-3 h-[1px] bg-emerald-100 dark:bg-emerald-900/30" />
+                                <div className="absolute left-[-1.5px] top-1.5 w-1.5 h-1.5 bg-emerald-500/40 rounded-full" />
+                                
+                                <div className="space-y-1">
+                                  <div 
+                                    onClick={() => toggleLog(log.id)}
+                                    className="flex items-center justify-between cursor-pointer group/node"
+                                  >
+                                    <div className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-tighter flex items-center gap-2 group-hover/node:text-emerald-500 transition-colors">
+                                      重温回顾 #{item.reReadLogs.length - idx} • {log.date}
+                                      {log.watchedWith && (
+                                        <span className="flex items-center gap-1 opacity-70">
+                                          <Users size={8} />
+                                          {log.watchedWith}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <ChevronDown 
+                                      size={10} 
+                                      className={`text-zinc-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} 
+                                    />
+                                  </div>
+                                  
+                                  <AnimatePresence>
+                                    {isExpanded && (
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="overflow-hidden"
+                                      >
+                                        {log.note ? (
+                                          <div className="text-[10px] mt-1 leading-relaxed text-zinc-500 dark:text-zinc-400 italic bg-emerald-500/5 dark:bg-emerald-500/10 border-l border-emerald-500/20 p-2 font-sans">
+                                            "{log.note}"
+                                          </div>
+                                        ) : (
+                                          <div className="text-[9px] mt-1 text-zinc-400 italic font-sans pl-2">
+                                            未记录心得
+                                          </div>
+                                        )}
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
-
-                <div className="flex items-center gap-1.5">
-                  <Clock size={11} className="text-zinc-400 dark:text-zinc-500" />
-                  <span>录入于: {new Date(item.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
-          </div>
 
           {/* Right Block: Interactive Note review & Re-watch Logs */}
           <div className="md:col-span-8 flex flex-col h-full space-y-5">
             
-            {/* Interactive Rating Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-3">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-serif font-bold tracking-tight text-zinc-800 dark:text-zinc-200 uppercase">
-                    个人评价
-                  </span>
-                  {rating > 0 && <span className="text-xl">{rating >= 8 ? '❤️' : '💢'}</span>}
+            {/* Companion Records Section */}
+            <div className="flex flex-col p-5 bg-emerald-50/30 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-serif font-bold tracking-tight text-[#4A3B32] dark:text-[#DDDAC4] uppercase">
+                      同看记录
+                    </span>
+                    <Users size={18} className="text-emerald-500" />
+                  </div>
+                  <span className="text-[11px] text-zinc-500 mt-1">记录共同观赏的伙伴与珍贵瞬间</span>
                 </div>
-                <span className="text-[10px] text-zinc-500 mt-0.5">个人评价标志将显示在档案卡片上</span>
               </div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleBinaryRatingClick('like')}
-                  className={`px-3 py-1.5 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    rating === 10
-                      ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30'
-                      : 'bg-white dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-red-500 hover:border-red-500/20'
-                  }`}
-                >
-                  <span className="text-sm">❤️</span>
-                  <span>好看</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleBinaryRatingClick('dislike')}
-                  className={`px-3 py-1.5 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    rating === 1
-                      ? 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30'
-                      : 'bg-white dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-600 hover:border-zinc-500/20'
-                  }`}
-                >
-                  <span className="text-sm">💢</span>
-                  <span>不好看</span>
-                </button>
-                {rating > 0 && (
+
+              <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="space-y-1.5">
+                   <div className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
+                    <span>同看人</span>
+                  </div>
+                  <input 
+                    type="text"
+                    placeholder="备注同看伙伴..."
+                    value={item.watchedWith || ''}
+                    onChange={(e) => onUpdateItem({ ...item, watchedWith: e.target.value || undefined, updatedAt: new Date().toISOString() })}
+                    className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-emerald-500 focus:outline-none py-1 text-zinc-800 dark:text-zinc-200"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
+                    <span>同看地点</span>
+                  </div>
+                  <input 
+                    type="text"
+                    placeholder="地点/场合..."
+                    value={item.watchedWithLocation || ''}
+                    onChange={(e) => onUpdateItem({ ...item, watchedWithLocation: e.target.value || undefined, updatedAt: new Date().toISOString() })}
+                    className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-emerald-500 focus:outline-none py-1 text-zinc-800 dark:text-zinc-200"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
+                    <span>同看体验</span>
+                  </div>
+                  <input 
+                    type="text"
+                    placeholder="评价本次同看..."
+                    value={item.watchedWithExperience || ''}
+                    onChange={(e) => onUpdateItem({ ...item, watchedWithExperience: e.target.value || undefined, updatedAt: new Date().toISOString() })}
+                    className="w-full text-base sm:text-lg font-bold bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-emerald-500 focus:outline-none py-1 text-zinc-800 dark:text-zinc-200"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Rating Bar */}
+            <div className="flex flex-col p-4 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-serif font-bold tracking-tight text-zinc-800 dark:text-zinc-200 uppercase">
+                      个人评分
+                    </span>
+                    {rating > 0 && <span className="text-xl">{rating >= 8 ? '❤️' : '💢'}</span>}
+                  </div>
+                  <span className="text-[10px] text-zinc-500 mt-0.5">评分将同步显示在卡片右上角</span>
+                </div>
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => {
-                      setRating(0);
-                      const updated = { ...item, personalRating: 0, updatedAt: new Date().toISOString() };
-                      onUpdateItem(updated);
-                    }}
-                    className="px-2 py-1.5 text-[10px] text-zinc-400 hover:text-red-400 hover:bg-zinc-200/40 dark:hover:bg-zinc-800/40 rounded-md transition-all cursor-pointer font-medium"
+                    onClick={() => handleBinaryRatingClick('like')}
+                    className={`px-3 py-1.5 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      rating === 10
+                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30'
+                        : 'bg-white dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-red-500 hover:border-red-500/20'
+                    }`}
                   >
-                    重置
+                    <span className="text-sm">❤️</span>
+                    <span>好看</span>
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => handleBinaryRatingClick('dislike')}
+                    className={`px-3 py-1.5 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      rating === 1
+                        ? 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30'
+                        : 'bg-white dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-600 hover:border-zinc-500/20'
+                    }`}
+                  >
+                    <span className="text-sm">💢</span>
+                    <span>不好看</span>
+                  </button>
+                  {rating > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRating(0);
+                        const updated = { ...item, personalRating: 0, updatedAt: new Date().toISOString() };
+                        onUpdateItem(updated);
+                      }}
+                      className="px-2 py-1.5 text-[10px] text-zinc-400 hover:text-red-400 hover:bg-zinc-200/40 dark:hover:bg-zinc-800/40 rounded-md transition-all cursor-pointer font-medium"
+                    >
+                      重置
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

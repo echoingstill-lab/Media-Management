@@ -114,21 +114,18 @@ export const DEFAULT_COLLECTIONS: Collection[] = [
     id: 'col-1',
     name: '必看神作与一生之书',
     description: '那些触及灵魂、极具启发性的高分经典作品。',
-    color: 'from-amber-600/20 to-orange-600/20 text-amber-400 border-amber-500/30',
     createdAt: '2026-07-10T12:00:00Z',
   },
   {
     id: 'col-2',
     name: '金融投资与系统思维',
     description: '提升个人商业认知、金融理财及工具方法论的书籍合集。',
-    color: 'from-emerald-600/20 to-teal-600/20 text-emerald-400 border-emerald-500/30',
     createdAt: '2026-07-11T12:00:00Z',
   },
   {
     id: 'col-3',
     name: '温暖治愈系角落',
     description: '温和护眼、舒缓疲惫的动漫与日常随笔。',
-    color: 'from-pink-600/20 to-purple-600/20 text-pink-400 border-pink-500/30',
     createdAt: '2026-07-12T12:00:00Z',
   },
 ];

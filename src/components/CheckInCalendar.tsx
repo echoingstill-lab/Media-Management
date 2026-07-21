@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, SquareCheck, Trophy, Award, Sparkles, Smile, Clock, Book, Film, Tv, Music, Gamepad, Compass, Ghost, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, SquareCheck, Trophy, Award, Sparkles, Smile, Clock, Book, Film, Tv, Music, Gamepad, Compass, Ghost, Check, X } from 'lucide-react';
 import { CheckInHabit, CheckInLog, MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { calculateStreak } from '../utils/helpers';
 import { motion, AnimatePresence } from 'motion/react';
@@ -14,6 +14,7 @@ interface CheckInCalendarProps {
   checkInLogs: CheckInLog[];
   mediaItems: MediaItem[];
   onToggleCheckIn: (date: string, habitId: string) => void;
+  onSelectItem: (itemId: string) => void;
 }
 
 export default function CheckInCalendar({
@@ -21,6 +22,7 @@ export default function CheckInCalendar({
   checkInLogs,
   mediaItems,
   onToggleCheckIn,
+  onSelectItem,
 }: CheckInCalendarProps) {
   const todayStr = (() => {
     const d = new Date();
@@ -32,7 +34,8 @@ export default function CheckInCalendar({
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const [activeHabitId, setActiveHabitId] = useState<string | null>(habits[0]?.id || 'book');
+  const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
 
   // Calendar math
   const year = currentDate.getFullYear();
@@ -40,7 +43,6 @@ export default function CheckInCalendar({
 
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const prevMonthDays = new Date(year, month, 0).getDate();
 
   const monthNames = [
     '一月', '二月', '三月', '四月', '五月', '六月',
@@ -73,16 +75,14 @@ export default function CheckInCalendar({
     }
   };
 
-  const getCompletedItemsForDate = (date: string, type: string | null) => {
-    if (!type) return [];
-    return mediaItems.filter(item => 
-      item.status === 'completed' && 
-      item.completedDate === date && 
-      item.type === type
-    );
+  const getMediaActivitiesForDate = (date: string) => {
+    const started = mediaItems.filter(item => item.startDate === date);
+    const completed = mediaItems.filter(item => item.status === 'completed' && item.completedDate === date);
+    return { started, completed };
   };
 
-  const selectedDayItems = getCompletedItemsForDate(selectedDate, activeHabitId);
+  const { started: dayStarted, completed: dayCompleted } = getMediaActivitiesForDate(selectedDate);
+  const hasActivity = dayStarted.length > 0 || dayCompleted.length > 0;
   const isSelectedChecked = checkInLogs.some(l => l.date === selectedDate && l.habitId === activeHabitId);
 
   const annualDays = (() => {
@@ -158,8 +158,10 @@ export default function CheckInCalendar({
               const isSelected = dateStr === selectedDate;
 
               return (
-                <button
+                <div
                   key={`day-${dayNum}`}
+                  onMouseEnter={() => setHoveredDate(dateStr)}
+                  onMouseLeave={() => setHoveredDate(null)}
                   onClick={() => setSelectedDate(dateStr)}
                   className={`border transition-all p-3 min-h-[90px] flex flex-col justify-between relative group cursor-pointer ${
                     isSelected 
@@ -198,7 +200,78 @@ export default function CheckInCalendar({
                       );
                     })}
                   </div>
-                </button>
+
+                  {/* Interactive Hover Detail Panel */}
+                  <AnimatePresence>
+                    {hoveredDate === dateStr && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] w-64 bg-white dark:bg-[#1c1e22] border border-[#E6E0D5] dark:border-zinc-800 shadow-2xl p-4 pointer-events-auto"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="mb-3 border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                          <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{dateStr}</div>
+                          <div className="text-xs font-serif font-bold text-[#4A3B32] dark:text-[#DDDAC4]">当日动态回顾</div>
+                        </div>
+
+                        {(() => {
+                          const { started, completed } = getMediaActivitiesForDate(dateStr);
+                          if (started.length === 0 && completed.length === 0) {
+                            return <div className="text-[10px] text-zinc-400 italic py-2">无相关动态</div>;
+                          }
+                          return (
+                            <div className="space-y-4 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                              {started.length > 0 && (
+                                <div>
+                                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-tighter mb-2 flex items-center gap-1">
+                                    <Clock size={8} /> 开始阅读/观看
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {started.map(item => (
+                                      <div 
+                                        key={item.id} 
+                                        onClick={() => onSelectItem(item.id)}
+                                        className="flex items-center gap-2 p-1.5 bg-[#FAF8F5]/50 dark:bg-zinc-900/40 border border-[#E6E0D5]/50 dark:border-zinc-850 hover:border-[#4A3B32] dark:hover:border-[#DDDAC4] transition-all group/item cursor-pointer"
+                                      >
+                                        <div className="shrink-0">{getTypeIcon(item.type)}</div>
+                                        <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover/item:text-[#4A3B32] dark:group-hover/item:text-[#DDDAC4]">{item.title}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {completed.length > 0 && (
+                                <div>
+                                  <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter mb-2 flex items-center gap-1">
+                                    <Trophy size={8} /> 阅毕/结案
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {completed.map(item => (
+                                      <div 
+                                        key={item.id} 
+                                        onClick={() => onSelectItem(item.id)}
+                                        className="flex items-center gap-2 p-1.5 bg-emerald-50/30 dark:bg-emerald-500/5 border border-emerald-500/10 hover:border-emerald-500 transition-all group/item cursor-pointer"
+                                      >
+                                        <div className="shrink-0 text-emerald-500">{getTypeIcon(item.type)}</div>
+                                        <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover/item:text-emerald-600">{item.title}</span>
+                                        <Sparkles size={8} className="ml-auto text-emerald-400" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {/* Tooltip arrow */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white dark:border-t-[#1c1e22]" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
           </div>

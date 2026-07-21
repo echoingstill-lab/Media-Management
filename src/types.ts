@@ -9,6 +9,7 @@ export interface ReReadLog {
   id: string;
   date: string;
   note: string;
+  watchedWith?: string;
 }
 
 export interface MediaItem {
@@ -22,6 +23,9 @@ export interface MediaItem {
   progressText?: string; // e.g. "第 5 章", "12/24集"
   startDate?: string;
   completedDate?: string;
+  watchedWith?: string;
+  watchedWithLocation?: string;
+  watchedWithExperience?: string;
   reReadCount: number;
   reReadLogs: ReReadLog[];
   personalRating: number; // 0 - 10 (half stars, represented as 0 to 10 points)
@@ -38,7 +42,7 @@ export interface Collection {
   id: string;
   name: string;
   description: string;
-  color: string; // e.g. hex color or tailwind badge class
+  parentId?: string | null;
   createdAt: string;
 }
 

@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder } from 'lucide-react';
 import { MediaItem, Collection, CheckInHabit, CheckInLog, MediaType, MEDIA_TYPE_LABELS } from './types';
 import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS } from './utils/helpers';
 
@@ -64,6 +65,24 @@ export default function App() {
 
   // --- Modal Popups Trigger State ---
   const [activeMediaDetailId, setActiveMediaDetailId] = useState<string | null>(null);
+  const [collectionContextMenu, setCollectionContextMenu] = useState<{ x: number, y: number, itemId: string } | null>(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => setCollectionContextMenu(null);
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
+  const handleMediaContextMenu = (e: React.MouseEvent, itemId: string) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    // Align exactly to the top left of the card for a perfectly "boxed" feel
+    setCollectionContextMenu({ 
+      x: rect.left, 
+      y: rect.top, 
+      itemId 
+    });
+  };
   const [activeMediaEdit, setActiveMediaEdit] = useState<MediaItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -205,6 +224,14 @@ export default function App() {
     setCollections(prev => [...prev, col]);
   };
 
+  const handleUpdateCollection = (id: string, updates: Partial<Collection>) => {
+    setCollections(prev =>
+      prev.map(col =>
+        col.id === id ? { ...col, ...updates } : col
+      )
+    );
+  };
+
   const handleDeleteCollection = (id: string) => {
     setCollections(prev => prev.filter(col => col.id !== id));
     // Orphan collection references from mediaItems
@@ -315,7 +342,7 @@ export default function App() {
           <div className="flex items-center gap-3 self-end md:self-auto font-mono text-xs">
             <div className="flex items-center gap-2 px-3 py-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-[#121214] rounded-none">
               <User size={13} className="opacity-60" />
-              <span className="font-bold uppercase text-[11px] tracking-wider text-[#4A3B32] dark:text-zinc-350">
+              <span className="font-bold uppercase text-[11px] tracking-wider text-[#4A3B32] dark:text-zinc-400">
                 用户: {currentUser}
               </span>
             </div>
@@ -445,7 +472,7 @@ export default function App() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-zinc-450" />
                 <input
                   type="text"
-                  placeholder="搜索书名、主创作者或标注标签..."
+                  placeholder="搜索名称、作者或标签……"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className={`w-full text-sm pl-9 pr-4 py-2.5 rounded-none border focus:outline-none ${
@@ -532,6 +559,7 @@ export default function App() {
                     key={item.id}
                     item={item}
                     onClick={() => setActiveMediaDetailId(item.id)}
+                    onContextMenu={handleMediaContextMenu}
                   />
                 ))}
               </div>
@@ -568,6 +596,7 @@ export default function App() {
               mediaItems={mediaItems}
               onCreateCollection={handleCreateCollection}
               onDeleteCollection={handleDeleteCollection}
+              onUpdateCollection={handleUpdateCollection}
               onUpdateItemCollections={handleUpdateItemCollections}
               onSelectCollectionFilter={(colId) => {
                 setSelectedCollectionFilter(colId);
@@ -589,6 +618,7 @@ export default function App() {
               checkInLogs={checkInLogs}
               mediaItems={mediaItems}
               onToggleCheckIn={handleToggleCheckIn}
+              onSelectItem={(id) => setActiveMediaDetailId(id)}
             />
           </div>
         )}
@@ -639,6 +669,68 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Global Collection Context Menu */}
+      <AnimatePresence>
+        {collectionContextMenu && (
+          <div 
+            className="fixed inset-0 z-[9999]" 
+            onClick={() => setCollectionContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setCollectionContextMenu(null); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 5 }}
+              className="absolute bg-white dark:bg-[#1c1e22] border border-[#E6E0D5] dark:border-zinc-800 shadow-2xl py-1.5 min-w-[200px] max-h-[400px] overflow-y-auto"
+              style={{ 
+                left: Math.min(collectionContextMenu.x, window.innerWidth - 220), 
+                top: Math.min(collectionContextMenu.y, window.innerHeight - 420) 
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 mb-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">加入合集 / ADD TO COLLECTION</span>
+              </div>
+              {(() => {
+                const targetItem = mediaItems.find(i => i.id === collectionContextMenu.itemId);
+                if (!targetItem) return null;
+
+                const renderColItems = (parentId: string | null = null, depth = 0) => {
+                  const items = collections.filter(c => c.parentId === parentId || (!parentId && !c.parentId));
+                  return items.map(col => {
+                    const isInCollection = targetItem.collections?.includes(col.id);
+                    const subCols = collections.filter(c => c.parentId === col.id);
+                    return (
+                      <React.Fragment key={col.id}>
+                        <button
+                          onClick={() => {
+                            const newCollections = isInCollection
+                              ? (targetItem.collections || []).filter(id => id !== col.id)
+                              : [...(targetItem.collections || []), col.id];
+                            handleUpdateItemCollections(targetItem.id, newCollections);
+                            setCollectionContextMenu(null);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 hover:bg-[#FAF8F5] dark:hover:bg-zinc-900/50 hover:text-[#4A3B32] dark:hover:text-[#DDDAC4] transition-colors text-left"
+                          style={{ paddingLeft: `${depth * 12 + 12}px` }}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Folder size={12} className={isInCollection ? 'text-[#4A3B32] dark:text-[#DDDAC4]' : 'opacity-50 shrink-0'} />
+                            <span className={`truncate ${isInCollection ? 'font-bold text-zinc-900 dark:text-zinc-100' : ''}`}>{col.name}</span>
+                          </div>
+                          {isInCollection && <SquareCheck size={12} className="text-[#4A3B32] dark:text-[#DDDAC4] shrink-0" />}
+                        </button>
+                        {subCols.length > 0 && renderColItems(col.id, depth + 1)}
+                      </React.Fragment>
+                    );
+                  });
+                };
+                return renderColItems(null);
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

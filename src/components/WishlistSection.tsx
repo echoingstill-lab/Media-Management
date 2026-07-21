@@ -30,7 +30,8 @@ import {
   HelpCircle,
   Clock,
   Square,
-  Activity
+  Activity,
+  Users
 } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 
@@ -290,7 +291,7 @@ export default function WishlistSection({
                 <div className="flex items-start gap-3">
                   <AlertCircle size={15} className="text-[#635C56] dark:text-[#C5C0AA] shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-300">计划顺延归档</span>
+                    <span className="text-xs font-serif font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-300">计划顺延归档</span>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed font-sans">
                       当前仍有 <strong className="text-zinc-800 dark:text-zinc-100 font-bold">{unfinishedItems.length}</strong> 个未完成目标，是否需要顺延至下月？
                     </p>
@@ -306,46 +307,17 @@ export default function WishlistSection({
               </div>
             )}
 
-            {/* Quick Operations bar: Quick Add & Import Existing Items */}
-            <div className="flex flex-col md:flex-row gap-3">
-              {/* Quick Item Planner Form */}
-              <form onSubmit={(e) => handleQuickAdd(e, monthStr)} className="flex-grow flex flex-col sm:flex-row gap-2">
-                <div className="flex-grow flex gap-2">
-                  <div className="relative flex items-center shrink-0">
-                    <select
-                      value={quickType}
-                      onChange={(e) => setQuickType(e.target.value as MediaType)}
-                      className="appearance-none text-xs bg-[#FAF8F5] dark:bg-[#111214] border border-[#E6E0D5] dark:border-[#2D3137] text-[#4A3B32] dark:text-[#DDDAC4] rounded-none pl-3 pr-6.5 py-2 text-zinc-700 font-bold focus:outline-none cursor-pointer select-none"
-                      style={{ minWidth: '74px' }}
-                    >
-                      {categories.map(cat => (
-                        <option key={cat} value={cat}>{MEDIA_TYPE_LABELS[cat]}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={11} className="absolute right-1.5 pointer-events-none text-[#4A3B32] dark:text-[#DDDAC4] opacity-70" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    placeholder="输入媒体标题（例如：极简宇宙史 / 黑客帝国）..."
-                    value={quickTitle}
-                    onChange={(e) => setQuickTitle(e.target.value)}
-                    className="flex-grow text-xs bg-[#FAF8F5] dark:bg-[#111214] border border-[#E6E0D5] dark:border-[#2D3137] rounded-none px-3 py-2 text-zinc-850 dark:text-zinc-200 focus:outline-none focus:border-[#4A3B32] font-sans"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#4A3B32] hover:bg-[#382B24] dark:bg-[#DDDAC4] dark:hover:bg-white text-[#FBF9F3] dark:text-[#111214] font-bold rounded-none text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
-                >
-                  <Plus size={13} />
-                  <span>一键录入</span>
-                </button>
-              </form>
-            </div>
-
             {/* MAIN TO DO LIST BOARDS BY CATEGORIES */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {categories.map(type => {
+              {[...categories]
+                .sort((a, b) => {
+                  const aCount = plannedItems.filter(i => i.type === a).length;
+                  const bCount = plannedItems.filter(i => i.type === b).length;
+                  if (aCount > 0 && bCount === 0) return -1;
+                  if (aCount === 0 && bCount > 0) return 1;
+                  return 0;
+                })
+                .map(type => {
                 const typeUnfinished = unfinishedItems.filter(item => item.type === type);
                 const typeFinished = completedItems.filter(item => item.type === type);
                 const hasItems = typeUnfinished.length > 0 || typeFinished.length > 0;
@@ -364,8 +336,16 @@ export default function WishlistSection({
                             {MEDIA_TYPE_LABELS[type]}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono text-zinc-400 font-bold tracking-wider">
-                          ({typeFinished.length}/{typeUnfinished.length + typeFinished.length} 已完成)
+                        <span className={`text-[10px] font-mono font-bold tracking-wider ${
+                          typeFinished.length === (typeUnfinished.length + typeFinished.length) && (typeUnfinished.length + typeFinished.length) > 0
+                            ? 'text-emerald-500' 
+                            : 'text-zinc-400'
+                        }`}>
+                          (
+                          <span className={typeFinished.length > 0 && typeFinished.length < (typeUnfinished.length + typeFinished.length) ? 'text-emerald-500' : ''}>
+                            {typeFinished.length}
+                          </span>
+                          /{typeUnfinished.length + typeFinished.length})
                         </span>
                       </div>
 
@@ -377,13 +357,16 @@ export default function WishlistSection({
                             {typeUnfinished.map(item => (
                               <div 
                                 key={item.id}
-                                className="group flex items-center justify-between gap-3 p-2.5 bg-[#FAF8F5] dark:bg-[#111214]/60 border border-[#E6E0D5] dark:border-[#2D3137] hover:border-[#4A3B32] dark:hover:border-zinc-400 transition-all text-xs"
+                                onClick={() => onSelectItem && onSelectItem(item.id)}
+                                className="group flex items-center justify-between gap-3 p-2.5 bg-[#FAF8F5] dark:bg-[#111214]/60 border border-[#E6E0D5] dark:border-[#2D3137] hover:border-[#4A3B32] dark:hover:border-zinc-400 transition-all text-xs cursor-pointer"
+                                title="点击查看媒体详情"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0 flex-grow">
                                   {item.status === 'progress' ? (
                                     <div className="relative group/tooltip shrink-0">
                                       <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           onUpdateItem({
                                             ...item,
                                             status: 'completed',
@@ -424,7 +407,8 @@ export default function WishlistSection({
                                   ) : (
                                     <div className="relative group/tooltip shrink-0">
                                       <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           onUpdateItem({
                                             ...item,
                                             status: 'completed',
@@ -442,96 +426,165 @@ export default function WishlistSection({
                                     </div>
                                   )}
                                   
-                                  <div className="flex flex-col min-w-0 flex-grow">
-                                    <span 
-                                      onClick={() => onSelectItem && onSelectItem(item.id)}
-                                      className={`font-semibold hover:text-[#4A3B32] dark:hover:text-[#DDDAC4] cursor-pointer truncate transition-all translate-y-[0.5px] ${
-                                        item.status === 'progress' 
-                                          ? 'text-amber-700 dark:text-amber-400 font-bold' 
-                                          : 'text-[#2B1E19] dark:text-zinc-100'
-                                      }`}
-                                      title="查看详情"
-                                    >
-                                      {item.title}
-                                    </span>
+                                  <div className="flex flex-col min-w-0 flex-grow py-0.5 justify-center">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span 
+                                        className={`text-[13px] font-semibold transition-all truncate leading-none ${
+                                          item.status === 'progress' 
+                                            ? 'text-amber-700 dark:text-amber-400 font-bold' 
+                                            : 'text-[#2B1E19] dark:text-zinc-100'
+                                        }`}
+                                      >
+                                        {item.title}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-
-                                {/* Operations toolbar */}
+                                <div className="flex items-center gap-1.5 shrink-0">
                                 <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                  {item.status === 'wishlist' && (
-                                    <div className="relative group/tooltip">
-                                      <button
-                                        onClick={() => {
-                                          if (window.confirm(`确定要将 "${item.title}" 顺延至下个月吗？`)) {
-                                            onUpdateItem({
-                                              ...item,
-                                              wishlistMonth: getNextMonthStr(monthStr),
-                                              updatedAt: new Date().toISOString()
-                                            });
-                                          }
-                                        }}
-                                        className="p-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-none transition-all cursor-pointer"
-                                      >
-                                        <ArrowRight size={12} />
-                                      </button>
-                                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
-                                        顺延至下月 / 挪到下月
-                                      </div>
-                                    </div>
-                                  )}
-                                  {item.status === 'progress' ? (
-                                    <div className="relative group/tooltip">
-                                      <button
-                                        onClick={() => {
+                                  <div className="relative group/tooltip">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const person = window.prompt('同看人:', item.watchedWith || '');
+                                        if (person !== null) {
+                                          const location = window.prompt('同看地点:', item.watchedWithLocation || '');
+                                          const experience = window.prompt('同看体验:', item.watchedWithExperience || '');
                                           onUpdateItem({
                                             ...item,
-                                            status: 'wishlist',
+                                            watchedWith: person.trim() || undefined,
+                                            watchedWithLocation: location?.trim() || undefined,
+                                            watchedWithExperience: experience?.trim() || undefined,
                                             updatedAt: new Date().toISOString()
                                           });
-                                        }}
-                                        className="p-1.5 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded-none transition-all cursor-pointer"
-                                      >
-                                        <Clock size={12} />
-                                      </button>
-                                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
-                                        撤销进行中状态
-                                      </div>
+                                        }
+                                      }}
+                                      className={`p-1.5 border rounded-none transition-all cursor-pointer ${
+                                        item.watchedWith 
+                                          ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400' 
+                                          : 'border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 hover:text-[#4A3B32]'
+                                      }`}
+                                    >
+                                      <Users size={12} />
+                                    </button>
+                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-2 px-3 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                      {item.watchedWith ? (
+                                        <div className="min-w-[120px]">
+                                          <div className="border-b border-zinc-700 pb-1 mb-1 text-emerald-400">同看信息</div>
+                                          <div className="space-y-0.5 text-[9px] opacity-90">
+                                            <div>同看人: {item.watchedWith}</div>
+                                            {item.watchedWithLocation && <div>地点: {item.watchedWithLocation}</div>}
+                                            {item.watchedWithExperience && <div>感受: {item.watchedWithExperience}</div>}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span>点击备注同看人</span>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <div className="relative group/tooltip">
-                                      <button
-                                        onClick={() => {
+                                  </div>
+                                {item.status === 'wishlist' && (
+                                  <div className="relative group/tooltip">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm(`确定要将 "${item.title}" 顺延至下个月吗？`)) {
                                           onUpdateItem({
                                             ...item,
-                                            status: 'progress',
-                                            startDate: new Date().toISOString().split('T')[0],
+                                            wishlistMonth: getNextMonthStr(monthStr),
                                             updatedAt: new Date().toISOString()
                                           });
-                                        }}
-                                        className="p-1.5 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-350 rounded-none transition-all cursor-pointer"
-                                      >
-                                        <Play size={12} />
-                                      </button>
-                                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
-                                        设为进行中
-                                      </div>
+                                        }
+                                      }}
+                                      className="p-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-none transition-all cursor-pointer"
+                                    >
+                                      <ArrowRight size={12} />
+                                    </button>
+                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                      挪到下月
                                     </div>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
+                                {item.status === 'progress' ? (
+                                  <div className="relative group/tooltip">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onUpdateItem({
+                                          ...item,
+                                          status: 'wishlist',
+                                          updatedAt: new Date().toISOString()
+                                        });
+                                      }}
+                                      className="p-1.5 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded-none transition-all cursor-pointer"
+                                    >
+                                      <Clock size={12} />
+                                    </button>
+                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                      撤销进行中状态
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="relative group/tooltip">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onUpdateItem({
+                                          ...item,
+                                          status: 'progress',
+                                          startDate: new Date().toISOString().split('T')[0],
+                                          updatedAt: new Date().toISOString()
+                                        });
+                                      }}
+                                      className="p-1.5 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-350 rounded-none transition-all cursor-pointer"
+                                    >
+                                      <Play size={12} />
+                                    </button>
+                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-sans font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                      设为进行中
+                                    </div>
+                                  </div>
+                                )}
                               </div>
+                              {/* Default state companion icon - Clickable and moved slightly left */}
+                              {(item.watchedWith || item.watchedWithLocation) && (
+                                <button 
+                                  className="group-hover:hidden transition-all shrink-0 cursor-pointer mr-1.5 hover:scale-110 active:scale-95 transition-transform"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const person = window.prompt('同看人:', item.watchedWith || '');
+                                    if (person !== null) {
+                                      const location = window.prompt('同看地点:', item.watchedWithLocation || '');
+                                      const experience = window.prompt('同看体验:', item.watchedWithExperience || '');
+                                      onUpdateItem({
+                                        ...item,
+                                        watchedWith: person.trim() || undefined,
+                                        watchedWithLocation: location?.trim() || undefined,
+                                        watchedWithExperience: experience?.trim() || undefined,
+                                        updatedAt: new Date().toISOString()
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Users size={11} className="text-emerald-500 drop-shadow-[0_0_2px_rgba(16,185,129,0.3)]" />
+                                </button>
+                              )}
+                              </div>
+                            </div>
                             ))}
 
                             {/* Completed List */}
                             {typeFinished.map(item => (
                               <div 
                                 key={item.id}
-                                className="flex items-center justify-between gap-2.5 p-2 bg-white dark:bg-[#111214]/30 border border-dashed border-[#E6E0D5] dark:border-zinc-850 text-xs group/fin"
+                                onClick={() => onSelectItem && onSelectItem(item.id)}
+                                className="flex items-center justify-between gap-2.5 p-2 bg-white dark:bg-[#111214]/30 border border-dashed border-[#E6E0D5] dark:border-zinc-850 text-xs group/fin cursor-pointer hover:border-[#4A3B32] dark:hover:border-zinc-400 transition-all"
+                                title="点击查看媒体详情"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0 flex-grow">
                                   <div className="relative group/tooltip shrink-0">
                                     <button
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         onUpdateItem({
                                           ...item,
                                           status: 'wishlist',
@@ -547,12 +600,78 @@ export default function WishlistSection({
                                       撤销完成状态
                                     </div>
                                   </div>
-                                  <span 
-                                    onClick={() => onSelectItem && onSelectItem(item.id)}
-                                    className="line-through truncate text-zinc-400 dark:text-zinc-500 hover:text-[#4A3B32] dark:hover:text-zinc-200 cursor-pointer font-medium translate-y-[0.5px]"
-                                  >
-                                    {item.title}
-                                  </span>
+                                  <div className="flex flex-col min-w-0 flex-grow py-0.5 justify-center">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="line-through truncate text-zinc-400 dark:text-zinc-500 font-medium text-[12px]">
+                                        {item.title}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity relative group/tooltip">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const person = window.prompt('同看人:', item.watchedWith || '');
+                                        if (person !== null) {
+                                          const location = window.prompt('同看地点:', item.watchedWithLocation || '');
+                                          const experience = window.prompt('同看体验:', item.watchedWithExperience || '');
+                                          onUpdateItem({
+                                            ...item,
+                                            watchedWith: person.trim() || undefined,
+                                            watchedWithLocation: location?.trim() || undefined,
+                                            watchedWithExperience: experience?.trim() || undefined,
+                                            updatedAt: new Date().toISOString()
+                                          });
+                                        }
+                                      }}
+                                      className={`p-1 border rounded-none transition-all cursor-pointer ${
+                                        item.watchedWith 
+                                          ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400' 
+                                          : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-300'
+                                      }`}
+                                    >
+                                      <Users size={10} />
+                                    </button>
+                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[9px] font-sans font-semibold py-2 px-3 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                      {item.watchedWith ? (
+                                        <div className="min-w-[100px]">
+                                          <div className="border-b border-zinc-700 pb-1 mb-1 text-emerald-400 text-[8px]">同看回顾</div>
+                                          <div className="space-y-0.5 text-[8px] opacity-90">
+                                            <div>人: {item.watchedWith}</div>
+                                            {item.watchedWithLocation && <div>地: {item.watchedWithLocation}</div>}
+                                            {item.watchedWithExperience && <div>感: {item.watchedWithExperience}</div>}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span>备注同看信息</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {/* Default state icon for finished list - Moved slightly left & Clickable */}
+                                  {(item.watchedWith || item.watchedWithLocation) && (
+                                    <button 
+                                      className="group-hover:hidden transition-all shrink-0 cursor-pointer mr-1.5 hover:scale-110 active:scale-95 transition-transform"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const person = window.prompt('同看人:', item.watchedWith || '');
+                                        if (person !== null) {
+                                          const location = window.prompt('同看地点:', item.watchedWithLocation || '');
+                                          const experience = window.prompt('同看体验:', item.watchedWithExperience || '');
+                                          onUpdateItem({
+                                            ...item,
+                                            watchedWith: person.trim() || undefined,
+                                            watchedWithLocation: location?.trim() || undefined,
+                                            watchedWithExperience: experience?.trim() || undefined,
+                                            updatedAt: new Date().toISOString()
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <Users size={10} className="text-zinc-300 dark:text-zinc-600" />
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -604,13 +723,25 @@ export default function WishlistSection({
                             <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                               {popupCandidates.length > 0 ? (
                                 popupCandidates.slice(0, 10).map(item => (
-                                  <div key={item.id} className="p-2 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 flex items-center justify-between gap-2 text-xs hover:border-zinc-300 dark:hover:border-zinc-700">
-                                    <span className="font-bold truncate dark:text-zinc-200">{item.title}</span>
+                                  <div key={item.id} className="p-2 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 flex items-center justify-between gap-2 text-xs hover:border-zinc-300 dark:hover:border-zinc-700 group/picker-item">
+                                    <div className="flex items-center gap-2 flex-grow min-w-0">
+                                      <span 
+                                        onClick={() => onSelectItem && onSelectItem(item.id)}
+                                        className="font-bold truncate dark:text-zinc-200 cursor-pointer hover:text-[#4A3B32] dark:hover:text-[#DDDAC4] hover:underline decoration-1 underline-offset-2"
+                                        title="查看该库中项目详情"
+                                      >
+                                        {item.title}
+                                      </span>
+                                      {item.status === 'completed' && (
+                                        <span className="text-[8px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 font-bold uppercase tracking-tighter shrink-0">已阅</span>
+                                      )}
+                                    </div>
                                     <button
                                       onClick={() => handlePopupImportItem(item)}
-                                      className="px-2 py-1 bg-zinc-50 dark:bg-[#111214] border border-zinc-200 dark:border-zinc-800 text-[9px] font-mono font-bold uppercase cursor-pointer hover:bg-[#4A3B32] hover:text-white dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214]"
+                                      className="px-2 py-1 bg-zinc-50 dark:bg-[#111214] border border-zinc-200 dark:border-zinc-800 text-[9px] font-mono font-bold uppercase cursor-pointer hover:bg-[#4A3B32] hover:text-white dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] shrink-0"
+                                      title={item.status === 'completed' ? '重新开始重温' : '加入清单'}
                                     >
-                                      + ADD
+                                      {item.status === 'completed' ? '+ RE-READ' : '+ ADD'}
                                     </button>
                                   </div>
                                 ))
@@ -660,7 +791,7 @@ export default function WishlistSection({
       {/* 3. DIVIDING LINE FOR FINISHED ARCHIVES */}
       <div className="pt-8 pb-4 flex items-center gap-4">
         <div className="h-px bg-[#E6E0D5] dark:bg-[#2D3137] flex-grow" />
-        <span className="text-2xl font-serif text-[#4A3B32] dark:text-[#DDDAC4] uppercase tracking-widest px-2 font-bold">
+        <span className="text-2xl font-serif italic text-[#4A3B32] dark:text-[#DDDAC4] uppercase tracking-widest px-2 font-bold">
           历史归档
         </span>
         <div className="h-px bg-[#E6E0D5] dark:bg-[#2D3137] flex-grow" />

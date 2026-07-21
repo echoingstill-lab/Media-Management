@@ -18,6 +18,7 @@ import CheckInCalendar from './components/CheckInCalendar';
 import DataManagement from './components/DataManagement';
 import WishlistSection from './components/WishlistSection';
 import LoginView from './components/LoginView';
+import AISettingsModal from './components/AISettingsModal';
 
 export default function App() {
   // --- Authentication State ---
@@ -84,6 +85,15 @@ export default function App() {
   };
   const [activeMediaEdit, setActiveMediaEdit] = useState<MediaItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
+
+  // Client ID for AI limit tracking
+  useEffect(() => {
+    if (!localStorage.getItem('media_archive_client_id')) {
+      const newId = 'client_' + Math.random().toString(36).substring(2, 11);
+      localStorage.setItem('media_archive_client_id', newId);
+    }
+  }, []);
 
   // Save states to LocalStorage on changes
   useEffect(() => {
@@ -319,6 +329,11 @@ export default function App() {
       {/* Decorative Minimal Ambient Line */}
       <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800"></div>
 
+      <AISettingsModal 
+        isOpen={showAISettings}
+        onClose={() => setShowAISettings(false)}
+      />
+
       {/* Main Container */}
       <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-6">
         
@@ -357,6 +372,18 @@ export default function App() {
               title={darkMode ? "切换至白天模式" : "切换至深色模式"}
             >
               {darkMode ? <Sun size={13} /> : <Moon size={13} />}
+            </button>
+
+            <button
+              onClick={() => setShowAISettings(true)}
+              className={`p-2 rounded-none border transition-all cursor-pointer flex items-center justify-center ${
+                darkMode
+                  ? 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300'
+                  : 'bg-white hover:bg-[#FAF7F2] border-[#E6E0D5] text-[#4A3B32]'
+              }`}
+              title="AI 解析设置"
+            >
+              <Sparkles size={13} />
             </button>
 
             {/* Logout Button */}

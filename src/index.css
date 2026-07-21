@@ -26,6 +26,29 @@
   * {
     font-variant-ligatures: none;
   }
+
+  /* Custom Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-300 dark:bg-zinc-700 rounded-full hover:bg-zinc-400 dark:hover:bg-zinc-600 transition-colors;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d4d4d8 transparent; /* zinc-300 */
+  }
+
+  .dark * {
+    scrollbar-color: #3f3f46 transparent; /* zinc-700 */
+  }
 }
 
 /* Custom smooth transitions & animations */

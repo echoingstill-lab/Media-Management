@@ -1,0 +1,12 @@
+{
+  "collections": {
+    "ai_usage": {
+      "documents": {
+        "userId_YYYYMMDD": {
+          "count": "number",
+          "last_request": "timestamp"
+        }
+      }
+    }
+  }
+}

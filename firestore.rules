@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /ai_usage/{usageId} {
+      // For now, allow read/write for development, 
+      // but in production we should restrict this to the server-side admin SDK.
+      // Since this applet is likely for a single user or small group, 
+      // we can use basic rules or rely on the server.
+      allow read, write: if true; 
+    }
+  }
+}

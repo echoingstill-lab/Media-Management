@@ -32,6 +32,24 @@ export default function App() {
     return saved ? JSON.parse(saved) : DEFAULT_MEDIA_ITEMS;
   });
 
+  // Track the sorting order stable across renders; only updates when switching tabs, or when items are added/deleted/imported.
+  const [sortedMediaIds, setSortedMediaIds] = useState<string[]>(() => {
+    const initialItems = localStorage.getItem('media_archive_items')
+      ? JSON.parse(localStorage.getItem('media_archive_items')!)
+      : DEFAULT_MEDIA_ITEMS;
+    const sorted = [...initialItems].sort((a, b) => {
+      const getWeight = (status: string | undefined) => {
+        if (status === 'progress') return 1;
+        if (status === 'wishlist') return 2;
+        if (!status) return 3;
+        if (status === 'completed') return 4;
+        return 5;
+      };
+      return getWeight(a.status) - getWeight(b.status);
+    });
+    return sorted.map(itm => itm.id);
+  });
+
   const [collections, setCollections] = useState<Collection[]>(() => {
     const saved = localStorage.getItem('media_archive_collections');
     return saved ? JSON.parse(saved) : DEFAULT_COLLECTIONS;
@@ -50,10 +68,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : DEFAULT_CHECK_IN_LOGS;
   });
 
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('media_archive_dark_mode');
-    return saved !== 'false'; // Default is Dark Mode (True)
-  });
+  const [darkMode] = useState<boolean>(true);
 
   // --- Search / Filters / Navigation State ---
   // The user requested: "主页只显示清单，然后才是媒体库"
@@ -100,6 +115,22 @@ export default function App() {
     localStorage.setItem('media_archive_items', JSON.stringify(mediaItems));
   }, [mediaItems]);
 
+  const mediaIdsString = mediaItems.map(itm => itm.id).join(',');
+
+  useEffect(() => {
+    const sorted = [...mediaItems].sort((a, b) => {
+      const getWeight = (status: string | undefined) => {
+        if (status === 'progress') return 1;
+        if (status === 'wishlist') return 2;
+        if (!status) return 3;
+        if (status === 'completed') return 4;
+        return 5;
+      };
+      return getWeight(a.status) - getWeight(b.status);
+    });
+    setSortedMediaIds(sorted.map(itm => itm.id));
+  }, [selectedTab, mediaIdsString]);
+
   useEffect(() => {
     localStorage.setItem('media_archive_collections', JSON.stringify(collections));
   }, [collections]);
@@ -113,8 +144,8 @@ export default function App() {
   }, [checkInLogs]);
 
   useEffect(() => {
-    localStorage.setItem('media_archive_dark_mode', String(darkMode));
-  }, [darkMode]);
+    // Force dark mode always
+  }, []);
 
   // --- Authentication Handlers ---
   const handleLogin = (username: string) => {
@@ -185,7 +216,7 @@ export default function App() {
       title,
       type,
       creator: '',
-      coverUrl: `https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=300&auto=format&fit=crop`,
+      coverUrl: '',
       description: '',
       status: 'wishlist',
       tags: [],
@@ -199,7 +230,8 @@ export default function App() {
       createdAt: now,
       updatedAt: now,
     };
-    setMediaItems(prev => [newItem, ...prev]);
+    setActiveMediaEdit(newItem);
+    setShowAddModal(true);
   };
 
   const handleMoveUnfinishedWishlist = (fromMonth: string) => {
@@ -296,20 +328,31 @@ export default function App() {
   };
 
   // --- Filters Pipeline ---
-  const filteredItems = mediaItems.filter(item => {
-    const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredItems = mediaItems
+    .filter(item => {
+      const matchesSearch =
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesType = selectedTypeFilter === 'all' || item.type === selectedTypeFilter;
-    const matchesStatus = selectedStatusFilter === 'all' || item.status === selectedStatusFilter;
+      const matchesType = selectedTypeFilter === 'all' || item.type === selectedTypeFilter;
+      const matchesStatus = selectedStatusFilter === 'all' || item.status === selectedStatusFilter;
 
-    const matchesCollection =
-      selectedCollectionFilter === null || item.collections.includes(selectedCollectionFilter);
+      const matchesCollection =
+        selectedCollectionFilter === null || item.collections.includes(selectedCollectionFilter);
 
-    return matchesSearch && matchesType && matchesStatus && matchesCollection;
-  });
+      return matchesSearch && matchesType && matchesStatus && matchesCollection;
+    })
+    .sort((a, b) => {
+      const idxA = sortedMediaIds.indexOf(a.id);
+      const idxB = sortedMediaIds.indexOf(b.id);
+      
+      if (idxA === -1 && idxB === -1) return 0;
+      if (idxA === -1) return -1; // New items sorted at the top
+      if (idxB === -1) return 1;
+      
+      return idxA - idxB;
+    });
 
   const activeMediaDetail = mediaItems.find(itm => itm.id === activeMediaDetailId);
 
@@ -354,33 +397,16 @@ export default function App() {
 
           {/* User Profile, Theme & LogOut */}
           <div className="flex items-center gap-3 self-end md:self-auto text-xs">
-            <div className="flex items-center gap-2 px-3 py-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-[#121214] rounded-none">
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-zinc-800 bg-[#121214] rounded-none">
               <User size={13} className="opacity-60" />
-              <span className="font-bold uppercase text-[12px] tracking-wider text-[#4A3B32] dark:text-zinc-400 font-serif">
+              <span className="font-bold uppercase text-[12px] tracking-wider text-zinc-400 font-serif">
                 用户: {currentUser}
               </span>
             </div>
 
-            {/* Dark Mode Switcher */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-none border transition-all cursor-pointer flex items-center justify-center ${
-                darkMode
-                  ? 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300'
-                  : 'bg-white hover:bg-[#FAF7F2] border-[#E6E0D5] text-[#4A3B32]'
-              }`}
-              title={darkMode ? "切换至白天模式" : "切换至深色模式"}
-            >
-              {darkMode ? <Sun size={13} /> : <Moon size={13} />}
-            </button>
-
             <button
               onClick={() => setShowAISettings(true)}
-              className={`p-2 rounded-none border transition-all cursor-pointer flex items-center justify-center ${
-                darkMode
-                  ? 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300'
-                  : 'bg-white hover:bg-[#FAF7F2] border-[#E6E0D5] text-[#4A3B32]'
-              }`}
+              className="p-2 rounded-none border transition-all cursor-pointer flex items-center justify-center bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300"
               title="AI 解析设置"
             >
               <Sparkles size={13} />
@@ -399,67 +425,47 @@ export default function App() {
 
         {/* Global Tab Navigation */}
         <nav className="flex flex-wrap gap-1 border-b pb-1 border-[#E6E0D5] dark:border-[#2D3137]">
-          <button
-            onClick={() => { setSelectedTab('wishlist'); }}
-            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
-              selectedTab === 'wishlist'
-                ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-[#4A3B32] dark:border-[#DDDAC4]'
-                : 'text-[#756256] dark:text-[#C5C0AA] hover:text-[#1A1A1A] dark:hover:text-[#DDDAC4] hover:border-zinc-400 dark:hover:border-zinc-500 border-transparent'
-            }`}
-          >
-            <Bookmark size={14} />
-            <span>月度清单</span>
-          </button>
-
-          <button
-            onClick={() => { setSelectedTab('archive'); setSelectedCollectionFilter(null); }}
-            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
-              selectedTab === 'archive'
-                ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-[#4A3B32] dark:border-[#DDDAC4]'
-                : 'text-[#756256] dark:text-[#C5C0AA] hover:text-[#1A1A1A] dark:hover:text-[#DDDAC4] hover:border-zinc-400 dark:hover:border-zinc-500 border-transparent'
-            }`}
-          >
-            <Book size={14} />
-            <span>媒体档案</span>
-          </button>
-          
-          <button
-            onClick={() => setSelectedTab('collections')}
-            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
-              selectedTab === 'collections'
-                ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-[#4A3B32] dark:border-[#DDDAC4]'
-                : 'text-[#756256] dark:text-[#C5C0AA] hover:text-[#1A1A1A] dark:hover:text-[#DDDAC4] hover:border-zinc-400 dark:hover:border-zinc-500 border-transparent'
-            }`}
-          >
-            <Layers size={14} />
-            <span>合集分组</span>
-          </button>
-
-          <button
-            onClick={() => setSelectedTab('calendar')}
-            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
-              selectedTab === 'calendar'
-                ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-[#4A3B32] dark:border-[#DDDAC4]'
-                : 'text-[#756256] dark:text-[#C5C0AA] hover:text-[#1A1A1A] dark:hover:text-[#DDDAC4] hover:border-zinc-400 dark:hover:border-zinc-500 border-transparent'
-            }`}
-          >
-            <Calendar size={14} />
-            <span>打卡记录</span>
-          </button>
-
-          <button
-            onClick={() => setSelectedTab('backup')}
-            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
-              selectedTab === 'backup'
-                ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-[#4A3B32] dark:border-[#DDDAC4]'
-                : 'text-[#756256] dark:text-[#C5C0AA] hover:text-[#1A1A1A] dark:hover:text-[#DDDAC4] hover:border-zinc-400 dark:hover:border-zinc-500 border-transparent'
-            }`}
-          >
-            <Database size={14} />
-            <span>数据相关</span>
-          </button>
+          {[
+            { id: 'wishlist', label: '月度清单', icon: <Bookmark size={14} /> },
+            { id: 'archive', label: '媒体档案', icon: <Book size={14} /> },
+            { id: 'collections', label: '合集分组', icon: <Layers size={14} /> },
+            { id: 'calendar', label: '打卡记录', icon: <Calendar size={14} /> },
+            { id: 'backup', label: '数据相关', icon: <Database size={14} /> },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setSelectedTab(tab.id as any);
+                if (tab.id === 'archive') setSelectedCollectionFilter(null);
+              }}
+              className={`relative px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none font-serif ${
+                selectedTab === tab.id
+                  ? 'text-[#FBF9F3] dark:text-[#111214]'
+                  : 'text-[#756256] dark:text-[#C5C0AA] hover:text-[#1A1A1A] dark:hover:text-[#DDDAC4]'
+              }`}
+            >
+              {selectedTab === tab.id && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 bg-[#4A3B32] dark:bg-[#DDDAC4] z-0"
+                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-2">
+                {tab.icon}
+                <span>{tab.label}</span>
+              </span>
+              {selectedTab === tab.id && (
+                <motion.div
+                  layoutId="activeTabBorder"
+                  className="absolute bottom-[-2px] left-0 right-0 h-[2px] bg-[#4A3B32] dark:border-[#DDDAC4] z-20"
+                />
+              )}
+            </button>
+          ))}
 
           <div className="flex-grow" />
+
 
           <button
             onClick={() => {
@@ -483,7 +489,37 @@ export default function App() {
             <WishlistSection
               mediaItems={mediaItems}
               onUpdateItem={handleUpdateWishlistItem}
+              onDeleteItem={handleDeleteMedia}
               onAddItem={handleAddWishlistItem}
+              onAddNew={(title) => {
+                const now = new Date();
+                const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const nowIso = now.toISOString();
+                setActiveMediaEdit({ 
+                  id: `media-${Date.now()}`,
+                  title, 
+                  type: 'book', 
+                  creator: '',
+                  coverUrl: '',
+                  description: '',
+                  status: 'wishlist',
+                  collections: [],
+                  tags: [],
+                  wishlistMonth: currentMonthStr,
+                  reReadCount: 0,
+                  reReadLogs: [],
+                  personalRating: 0,
+                  personalNote: '',
+                  noteImages: [],
+                  createdAt: nowIso,
+                  updatedAt: nowIso,
+                });
+                setShowAddModal(true);
+              }}
+              onEditItem={(item) => {
+                setActiveMediaEdit(item);
+                setShowAddModal(true);
+              }}
               onMoveUnfinished={handleMoveUnfinishedWishlist}
               darkMode={darkMode}
               onSelectItem={setActiveMediaDetailId}
@@ -528,7 +564,6 @@ export default function App() {
                     { key: 'wishlist', label: '想读看' },
                     { key: 'progress', label: '进行中' },
                     { key: 'completed', label: '已完成' },
-                    { key: 'paused', label: '搁置' },
                   ].map(st => (
                     <button
                       key={st.key}
@@ -593,6 +628,34 @@ export default function App() {
                     item={item}
                     onClick={() => setActiveMediaDetailId(item.id)}
                     onContextMenu={handleMediaContextMenu}
+                    onStatusChange={(itemId, newStatus, extraFields) => {
+                      setMediaItems(prev => prev.map(m => {
+                        if (m.id === itemId) {
+                          const now = new Date().toISOString();
+                          const updated = {
+                            ...m,
+                            status: newStatus,
+                            updatedAt: now,
+                            ...extraFields
+                          };
+                          // If moving to completed, set completedDate
+                          if (newStatus === 'completed' && !m.completedDate) {
+                            updated.completedDate = now.split('T')[0];
+                          }
+                          // If moving to progress, set startDate
+                          if (newStatus === 'progress' && !m.startDate) {
+                            updated.startDate = now.split('T')[0];
+                          }
+                          // If moving to wishlist (加入清单-默认本月), and wishlistMonth is empty, set default to this month
+                          if (newStatus === 'wishlist' && !m.wishlistMonth) {
+                            const nowStr = now.split('T')[0];
+                            updated.wishlistMonth = nowStr.substring(0, 7); // e.g. "2026-07"
+                          }
+                          return updated;
+                        }
+                        return m;
+                      }));
+                    }}
                   />
                 ))}
               </div>
@@ -623,24 +686,22 @@ export default function App() {
 
         {/* ==================== TAB 3: 分类合集 (COLLECTIONS) ==================== */}
         {selectedTab === 'collections' && (
-          <div className="animate-fade-in">
-            <CollectionManager
-              collections={collections}
-              mediaItems={mediaItems}
-              onCreateCollection={handleCreateCollection}
-              onDeleteCollection={handleDeleteCollection}
-              onUpdateCollection={handleUpdateCollection}
-              onUpdateItemCollections={handleUpdateItemCollections}
-              onSelectCollectionFilter={(colId) => {
-                setSelectedCollectionFilter(colId);
-              }}
-              selectedCollectionId={selectedCollectionFilter}
-              onSelectItem={(itemId) => {
-                setSelectedTab('archive');
-                setActiveMediaDetailId(itemId);
-              }}
-            />
-          </div>
+          <CollectionManager
+            collections={collections}
+            mediaItems={mediaItems}
+            onCreateCollection={handleCreateCollection}
+            onDeleteCollection={handleDeleteCollection}
+            onUpdateCollection={handleUpdateCollection}
+            onUpdateItemCollections={handleUpdateItemCollections}
+            onSelectCollectionFilter={(colId) => {
+              setSelectedCollectionFilter(colId);
+            }}
+            selectedCollectionId={selectedCollectionFilter}
+            onSelectItem={(itemId) => {
+              setSelectedTab('archive');
+              setActiveMediaDetailId(itemId);
+            }}
+          />
         )}
 
         {/* ==================== TAB 4: 日常专注打卡 (CALENDAR & HABITS) ==================== */}

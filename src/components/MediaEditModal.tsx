@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS } from '../types';
+import { generateSvgCover } from '../utils/helpers';
 
 interface MediaEditModalProps {
   item?: MediaItem; // If present, we are editing; if absent, creating
@@ -128,7 +129,7 @@ export default function MediaEditModal({
       setWatchedWith('');
       setSelectedTags([]);
       setSelectedColIds([]);
-      setWishlistMonth(getCurrentMonthStr());
+      setWishlistMonth('');
       setShowAdvanced(false); // default to collapsed for creating to keep it simple
     }
   }, [item]);
@@ -218,7 +219,7 @@ export default function MediaEditModal({
     if (!title.trim()) return;
 
     // Use default SVG cover card or provided fallback if empty
-    const finalCover = coverUrl.trim() || `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400' viewBox='0 0 300 400'><rect width='300' height='400' fill='%231f2937'/><circle cx='150' cy='130' r='75' fill='%23374151' opacity='0.4'/><text x='50%' y='52%' text-anchor='middle' fill='%23f9fafb' font-family='sans-serif' font-weight='700' font-size='22'>${encodeURIComponent(title.substring(0, 10))}</text><text x='50%' y='64%' text-anchor='middle' fill='%239ca3af' font-family='sans-serif' font-weight='500' font-size='13'>${encodeURIComponent(MEDIA_TYPE_LABELS[type] || '')}</text></svg>`;
+    const finalCover = coverUrl.trim() || generateSvgCover(title.trim(), creator.trim(), type);
 
     onSave({
       id: item?.id,
@@ -239,7 +240,7 @@ export default function MediaEditModal({
       noteImages: item?.noteImages || [],
       tags: selectedTags,
       collections: selectedColIds,
-      wishlistMonth: status === 'wishlist' ? (wishlistMonth || getCurrentMonthStr()) : undefined,
+      wishlistMonth: status === 'wishlist' ? (wishlistMonth || undefined) : undefined,
     });
   };
 
@@ -263,9 +264,8 @@ export default function MediaEditModal({
         {/* Scrollable Form Body */}
         <div className="overflow-y-auto p-6 space-y-6 flex-grow bg-white dark:bg-[#191B1E]">
           
-          {/* AI Link/Search Bar (Highly prominent when creating a new record) */}
-          {!item && (
-            <div className="p-4 rounded-none bg-white/55 dark:bg-zinc-950/50 border border-[#dcd6cb] dark:border-[#2D3137] space-y-2.5">
+          {/* AI Link/Search Bar (Highly prominent when creating or editing a record) */}
+          <div className="p-4 rounded-none bg-white/55 dark:bg-zinc-950/50 border border-[#dcd6cb] dark:border-[#2D3137] space-y-2.5">
               <div className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                 <Sparkles size={14} className="text-amber-500 dark:text-amber-400 animate-pulse" />
                 <span>输入链接或标题极速识别</span>
@@ -305,7 +305,6 @@ export default function MediaEditModal({
                 <p className="text-[10px] text-red-500 dark:text-red-400 mt-1">{aiError}</p>
               )}
             </div>
-          )}
 
           {/* Form */}
           <form id="media-edit-form" onSubmit={handleSave} className="space-y-5">
@@ -319,7 +318,15 @@ export default function MediaEditModal({
                 <div className="sm:col-span-4 flex flex-col items-center">
                   <div className="relative aspect-[3/4] w-28 bg-white dark:bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2D3137] flex flex-col items-center justify-center text-center shadow-sm">
                     {coverUrl ? (
-                      <img src={coverUrl} alt="封面预览" className="w-full h-full object-cover" />
+                      <img 
+                        src={coverUrl} 
+                        alt="封面预览" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.src = generateSvgCover(title || '未知', creator || '佚名', type);
+                        }}
+                      />
                     ) : (
                       <div className="p-2 text-zinc-400 dark:text-zinc-600">
                         <ImageIcon size={20} className="mx-auto mb-1 opacity-30" />
@@ -424,7 +431,6 @@ export default function MediaEditModal({
                         <option value="wishlist">计划清单</option>
                         <option value="progress">进行中</option>
                         <option value="completed">已完成</option>
-                        <option value="paused">已搁置</option>
                       </select>
                     </div>
                   </div>

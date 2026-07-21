@@ -83,6 +83,47 @@ async function checkUsage(clientId: string): Promise<{ allowed: boolean; remaini
   }
 }
 
+function isValidImageUrl(url: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.toLowerCase().trim();
+  
+  if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false;
+  
+  // Known high-quality direct image hosts
+  if (lower.includes("doubanio.com") || 
+      lower.includes("mzstatic.com") || 
+      lower.includes("ytimg.com") ||
+      lower.includes("media-amazon.com") ||
+      lower.includes("images-na.ssl-images-amazon.com") ||
+      lower.includes("steamstatic.com") ||
+      lower.includes("gcores.com") ||
+      lower.includes("shinchosha.co.jp") ||
+      lower.includes("akamaihd.net")) {
+    return true;
+  }
+  
+  // Exclude common webpage URL patterns instead of actual direct images
+  if (lower.includes("google.com/imgres") || 
+      lower.includes("google.com/url") ||
+      lower.includes("search?") ||
+      lower.includes("wikipedia.org/wiki/") ||
+      (lower.includes("douban.com/") && !lower.includes("doubanio.com/")) ||
+      lower.includes("imdb.com/title/") ||
+      lower.includes("bangumi.tv/subject/") ||
+      lower.includes(".html") || 
+      lower.includes(".htm")) {
+    return false;
+  }
+  
+  // We want to make sure it's an actual image extension or is from a reliable image host
+  const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg|bmp)(\?.*)?$/i.test(lower);
+  const isImageHost = lower.includes("unsplash.com") || 
+                      lower.includes("openlibrary.org") || 
+                      lower.includes("vignette.wikia.nocookie.net");
+                      
+  return hasImageExtension || isImageHost;
+}
+
 // API: Parse Book/Movie/Anime/Music links or titles using Gemini + Search Grounding
 app.post("/api/parse-link", async (req, res) => {
   try {
@@ -107,15 +148,43 @@ app.post("/api/parse-link", async (req, res) => {
     let activeProvider = provider;
     if (!activeProvider) {
       if (userApiKey) {
-        activeProvider = "openai"; // Default for personal key if not specified
+        activeProvider = "openai"; 
       } else {
-        activeProvider = process.env.GEMINI_API_KEY ? "gemini" : "openai";
+        // Prioritize SiliconFlow if configured, then Gemini, then DeepSeek
+        if (process.env.SILICONFLOW_API_KEY) {
+          activeProvider = "siliconflow";
+        } else if (process.env.GEMINI_API_KEY) {
+          activeProvider = "gemini";
+        } else {
+          activeProvider = "openai";
+        }
       }
     }
     
-    const prompt = `You are a professional media cataloging assistant. Parse this user input: "${url}".
-Return a JSON object with: title, type (one of: 'book', 'movie', 'tv', 'anime', 'music', 'game', 'other'), creator, coverUrl, description (1-2 sentences in Chinese), tags (array), rating (null or number 0-10), releaseYear.
-If searching for cover, use a direct image URL or generate a portrait SVG Data URL.`;
+    const prompt = `You are a professional media cataloging assistant specializing in Chinese and International media.
+User Input: "${url}"
+
+Tasks:
+1. Identify the media item from the input. 
+2. If the input is a Douban Link (e.g., movie.douban.com/subject/1292052/), you MUST prioritize the information from that specific Douban entry.
+3. For all items, use your search capabilities to find:
+   - Official Title in Chinese (e.g., "肖申克的救赎")
+   - Creator (Author, Director, Studio, or Artist)
+   - Release Year
+   - A DIRECT STATIC IMAGE URL for the cover (e.g., ending in .jpg or .webp, from doubanio.com or media-amazon.com). 
+   - Genres/Tags
+   - A short description (1-2 sentences in Chinese)
+4. Return a strictly valid JSON object:
+   - title: (string) Official Chinese title
+   - type: (one of: 'book', 'movie', 'tv', 'anime', 'music', 'game', 'other')
+   - creator: (string) Author/Director/etc
+   - coverUrl: (string) MUST be a direct image file link. If the found Douban cover URL has a suffix like 's' or 'm' (small), try to get the large 'l' version or original version.
+   - description: (string) Chinese summary
+   - tags: (array of strings)
+   - rating: (number 0-10 or null)
+   - releaseYear: (number or string or null)
+
+CRITICAL: Do NOT return gallery links, search page links, or HTML pages as coverUrl. Return ONLY direct image assets. Use Chinese for descriptions and titles.`;
 
     if (activeProvider === "gemini" && !baseUrl) {
       const ai = getGeminiClient(userApiKey);
@@ -134,27 +203,43 @@ If searching for cover, use a direct image URL or generate a portrait SVG Data U
 
       const resultText = response.text?.trim() || "{}";
       const resultJson = JSON.parse(resultText);
+      if (resultJson.coverUrl && !isValidImageUrl(resultJson.coverUrl)) {
+        resultJson.coverUrl = "";
+      }
       return res.json({ success: true, data: resultJson, remaining: usageInfo.remaining });
     } else {
-      // OpenAI compatible (DeepSeek, Local LLM, etc.)
-      const apiKey = userApiKey || process.env.DEEPSEEK_API_KEY;
-      const finalBaseUrl = baseUrl || (userApiKey ? "https://api.openai.com/v1" : "https://api.deepseek.com");
-      
-      // Auto-detect model if not provided
+      // OpenAI compatible (SiliconFlow, DeepSeek, Local LLM, etc.)
+      let apiKey = userApiKey;
+      let finalBaseUrl = baseUrl;
       let finalModel = model;
-      if (!finalModel) {
-        if (finalBaseUrl.includes("deepseek.com")) {
-          finalModel = "deepseek-chat";
-        } else if (finalBaseUrl.includes("openai.com")) {
-          finalModel = "gpt-4o-mini";
+
+      if (!userApiKey) {
+        if (activeProvider === "siliconflow") {
+          apiKey = process.env.SILICONFLOW_API_KEY;
+          finalBaseUrl = "https://api.siliconflow.cn/v1";
+          finalModel = model || "deepseek-ai/DeepSeek-V3";
         } else {
-          // Default to a common standard or keep it generic
-          finalModel = userApiKey ? "gpt-4o-mini" : "deepseek-chat";
+          apiKey = process.env.DEEPSEEK_API_KEY;
+          finalBaseUrl = "https://api.deepseek.com";
+          finalModel = model || "deepseek-chat";
+        }
+      } else {
+        // Personal Key
+        if (activeProvider === "siliconflow") {
+          finalBaseUrl = baseUrl || "https://api.siliconflow.cn/v1";
+          finalModel = model || "deepseek-ai/DeepSeek-V3";
+        } else {
+          finalBaseUrl = baseUrl || "https://api.openai.com/v1";
+          if (!finalModel) {
+            if (finalBaseUrl.includes("deepseek.com")) finalModel = "deepseek-chat";
+            else if (finalBaseUrl.includes("openai.com")) finalModel = "gpt-4o-mini";
+            else finalModel = "gpt-4o-mini";
+          }
         }
       }
 
       if (!apiKey) {
-        return res.status(400).json({ error: "API key is not configured." });
+        return res.status(400).json({ error: `${activeProvider} API key is not configured.` });
       }
 
       const client = new OpenAI({
@@ -173,6 +258,9 @@ If searching for cover, use a direct image URL or generate a portrait SVG Data U
 
       const resultText = response.choices[0].message.content || "{}";
       const resultJson = JSON.parse(resultText);
+      if (resultJson.coverUrl && !isValidImageUrl(resultJson.coverUrl)) {
+        resultJson.coverUrl = "";
+      }
       return res.json({ success: true, data: resultJson, remaining: usageInfo.remaining });
     }
   } catch (error: any) {

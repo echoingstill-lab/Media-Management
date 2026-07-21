@@ -5,9 +5,9 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown } from 'lucide-react';
+import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square } from 'lucide-react';
 import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS } from '../types';
-import { compressImage } from '../utils/helpers';
+import { compressImage, generateSvgCover } from '../utils/helpers';
 
 interface MediaDetailModalProps {
   item: MediaItem;
@@ -38,7 +38,6 @@ export default function MediaDetailModal({
   // Re-read Log state
   const [reReadDate, setReReadDate] = useState(new Date().toISOString().split('T')[0]);
   const [reReadNote, setReReadNote] = useState('');
-  const [reReadWatchedWith, setReReadWatchedWith] = useState('');
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -126,7 +125,6 @@ export default function MediaDetailModal({
       id: Math.random().toString(36).substr(2, 9),
       date: reReadDate,
       note: reReadNote.trim() || undefined,
-      watchedWith: reReadWatchedWith.trim() || undefined
     } as ReReadLog;
     
     const updatedItem = {
@@ -137,7 +135,6 @@ export default function MediaDetailModal({
     
     onUpdateItem(updatedItem);
     setReReadNote('');
-    setReReadWatchedWith('');
   };
 
   const handleDeleteReRead = (id: string) => {
@@ -227,7 +224,15 @@ export default function MediaDetailModal({
           <div className="md:col-span-3 flex flex-col space-y-6">
             {/* Cover Image */}
             <div className="relative aspect-[2/3] w-full max-w-[180px] mx-auto bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] shadow-xl group">
-              <img src={item.coverUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={item.title} />
+              <img 
+                src={item.coverUrl || generateSvgCover(item.title, item.creator || '佚名', item.type)} 
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                alt={item.title} 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.src = generateSvgCover(item.title, item.creator || '佚名', item.type);
+                }}
+              />
               <div className="absolute inset-0 ring-1 ring-inset ring-white/10" />
             </div>
 
@@ -274,16 +279,96 @@ export default function MediaDetailModal({
                     {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
                   <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">当前状态</span>
-                  <span className={`text-[12px] font-bold uppercase ${
-                    item.status === 'completed' ? 'text-emerald-600 dark:text-emerald-500' : 
-                    item.status === 'progress' ? 'text-amber-600 dark:text-amber-500' : 
-                    item.status === 'paused' ? 'text-zinc-500 dark:text-zinc-400' : 
-                    'text-blue-500 dark:text-blue-400'
-                  }`}>
-                    {item.status === 'completed' ? '已结案' : item.status === 'progress' ? '进行中' : item.status === 'paused' ? '已搁置' : '想看清单'}
-                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {/* Option 1: Bookmark / Wishlist */}
+                    <button
+                      onClick={() => {
+                        const newStatus = item.status === 'wishlist' ? undefined : 'wishlist';
+                        const now = new Date().toISOString();
+                        const updated: MediaItem = {
+                          ...item,
+                          status: newStatus,
+                          updatedAt: now,
+                        };
+                        if (newStatus === 'wishlist' && !item.wishlistMonth) {
+                          updated.wishlistMonth = now.split('T')[0].substring(0, 7);
+                        }
+                        if (newStatus === undefined) {
+                          delete updated.status;
+                        }
+                        onUpdateItem(updated);
+                      }}
+                      title={item.status === 'wishlist' ? "取消想看状态" : "加入想看清单 (本月)"}
+                      className={`px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 transition-all border rounded-none cursor-pointer ${
+                        item.status === 'wishlist'
+                          ? 'border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-750'
+                      }`}
+                    >
+                      <Bookmark size={11} fill={item.status === 'wishlist' ? 'currentColor' : 'none'} />
+                      想看
+                    </button>
+
+                    {/* Option 2: Progress */}
+                    <button
+                      onClick={() => {
+                        const newStatus = item.status === 'progress' ? undefined : 'progress';
+                        const now = new Date().toISOString();
+                        const updated: MediaItem = {
+                          ...item,
+                          status: newStatus,
+                          updatedAt: now,
+                        };
+                        if (newStatus === 'progress' && !item.startDate) {
+                          updated.startDate = now.split('T')[0];
+                        }
+                        if (newStatus === undefined) {
+                          delete updated.status;
+                        }
+                        onUpdateItem(updated);
+                      }}
+                      title={item.status === 'progress' ? "取消进行中状态" : "标记为进行中"}
+                      className={`px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 transition-all border rounded-none cursor-pointer ${
+                        item.status === 'progress'
+                          ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-750'
+                      }`}
+                    >
+                      <Play size={11} fill={item.status === 'progress' ? 'currentColor' : 'none'} />
+                      在看
+                    </button>
+
+                    {/* Option 3: Completed */}
+                    <button
+                      onClick={() => {
+                        const newStatus = item.status === 'completed' ? undefined : 'completed';
+                        const now = new Date().toISOString();
+                        const updated: MediaItem = {
+                          ...item,
+                          status: newStatus,
+                          updatedAt: now,
+                        };
+                        if (newStatus === 'completed' && !item.completedDate) {
+                          updated.completedDate = now.split('T')[0];
+                        }
+                        if (newStatus === undefined) {
+                          delete updated.status;
+                        }
+                        onUpdateItem(updated);
+                      }}
+                      title={item.status === 'completed' ? "取消已完成状态" : "标记为已完成"}
+                      className={`px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 transition-all border rounded-none cursor-pointer ${
+                        item.status === 'completed'
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-750'
+                      }`}
+                    >
+                      <Check size={11} />
+                      已看
+                    </button>
+                  </div>
                 </div>
                 {item.startDate && (
                   <div className="space-y-1">
@@ -452,26 +537,14 @@ export default function MediaDetailModal({
                     <div className="p-5 bg-zinc-50 dark:bg-[#111214] border border-[#dcd6cb] dark:border-zinc-800 space-y-4">
                       <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">新增重温记录</div>
                       <form onSubmit={handleAddReRead} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温日期</label>
-                            <input 
-                              type="date" 
-                              value={reReadDate}
-                              onChange={(e) => setReReadDate(e.target.value)}
-                              className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 outline-none focus:border-zinc-400 font-serif"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">与谁一同</label>
-                            <input 
-                              type="text"
-                              placeholder="与谁一起..."
-                              value={reReadWatchedWith}
-                              onChange={(e) => setReReadWatchedWith(e.target.value)}
-                              className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-zinc-400 font-serif"
-                            />
-                          </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温日期</label>
+                          <input 
+                            type="date" 
+                            value={reReadDate}
+                            onChange={(e) => setReReadDate(e.target.value)}
+                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 outline-none focus:border-zinc-400 font-serif"
+                          />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温心得</label>
@@ -496,16 +569,13 @@ export default function MediaDetailModal({
                       {item.reReadLogs && item.reReadLogs.length > 0 ? (
                         item.reReadLogs.map((log, idx) => (
                           <div key={log.id || idx} className="p-4 border border-[#dcd6cb] dark:border-zinc-800 bg-white dark:bg-[#15171a] space-y-2 group">
-                             <div className="flex items-center justify-between">
+                             <div className="flex items-center justify-between border-b border-zinc-50 dark:border-zinc-900 pb-2 mb-2">
                                 <div className="flex items-center gap-3">
-                                   <span className="text-[10px] font-bold text-zinc-400">#{item.reReadLogs.length - idx}</span>
-                                   <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{log.date}</span>
-                                   {log.watchedWith && (
-                                     <span className="flex items-center gap-1.5 text-[10px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-wider">
-                                       <Users size={10} />
-                                       {log.watchedWith}
-                                     </span>
-                                   )}
+                                   <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 font-mono">#{item.reReadLogs.length - idx}</span>
+                                   <div className="flex items-center gap-1 text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                                     <Calendar size={11} className="text-zinc-400" />
+                                     <span>{log.date}</span>
+                                   </div>
                                 </div>
                                 <button 
                                   onClick={() => handleDeleteReRead(log.id)}

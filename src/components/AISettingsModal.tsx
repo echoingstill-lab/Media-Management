@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Settings, X, Key, Info, Zap, ShieldCheck } from 'lucide-react';
 
 interface AISettings {
-  provider: 'gemini' | 'openai';
+  provider: 'gemini' | 'openai' | 'siliconflow';
   userApiKey: string;
   baseUrl: string;
   useCustomKey: boolean;
@@ -116,10 +116,11 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                   </label>
                   <select
                     value={settings.provider}
-                    onChange={(e) => setSettings(prev => ({ ...prev, provider: e.target.value as 'gemini' | 'openai' }))}
+                    onChange={(e) => setSettings(prev => ({ ...prev, provider: e.target.value as 'gemini' | 'openai' | 'siliconflow' }))}
                     className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-xs text-[#4A3B32] dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#4A3B32]"
                   >
                     <option value="gemini">Google Gemini</option>
+                    <option value="siliconflow">SiliconFlow (硅基流动)</option>
                     <option value="openai">Other (OpenAI Compatible)</option>
                   </select>
                 </div>

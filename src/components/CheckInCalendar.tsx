@@ -226,18 +226,18 @@ export default function CheckInCalendar({
                             <div className="space-y-4 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                               {started.length > 0 && (
                                 <div>
-                                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-tighter mb-2 flex items-center gap-1">
-                                    <Clock size={8} /> 开始阅读/观看
+                                  <div className="text-[9px] font-bold text-amber-500 dark:text-amber-400 uppercase tracking-tighter mb-2 flex items-center gap-1">
+                                    <Clock size={8} /> 开始阅读/观看 (进行中)
                                   </div>
                                   <div className="space-y-1.5">
                                     {started.map(item => (
                                       <div 
                                         key={item.id} 
                                         onClick={() => onSelectItem(item.id)}
-                                        className="flex items-center gap-2 p-1.5 bg-[#FAF8F5]/50 dark:bg-zinc-900/40 border border-[#E6E0D5]/50 dark:border-zinc-850 hover:border-[#4A3B32] dark:hover:border-[#DDDAC4] transition-all group/item cursor-pointer"
+                                        className="flex items-center gap-2 p-1.5 bg-amber-50/30 dark:bg-amber-500/5 border border-amber-500/10 hover:border-amber-500 transition-all group/item cursor-pointer"
                                       >
-                                        <div className="shrink-0">{getTypeIcon(item.type)}</div>
-                                        <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover/item:text-[#4A3B32] dark:group-hover/item:text-[#DDDAC4]">{item.title}</span>
+                                        <div className="shrink-0 text-amber-500 dark:text-amber-400">{getTypeIcon(item.type)}</div>
+                                        <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover/item:text-amber-600 dark:group-hover/item:text-amber-400">{item.title}</span>
                                       </div>
                                     ))}
                                   </div>

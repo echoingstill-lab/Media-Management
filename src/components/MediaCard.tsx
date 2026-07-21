@@ -4,9 +4,10 @@
  */
 
 import React from 'react';
-import { motion } from 'motion/react';
-import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
+import { generateSvgCover } from '../utils/helpers';
 
 interface MediaCardProps {
   key?: React.Key;
@@ -14,9 +15,10 @@ interface MediaCardProps {
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent, itemId: string) => void;
   onQuickRate?: (itemId: string, rating: number) => void;
+  onStatusChange?: (itemId: string, newStatus: MediaItem['status'] | undefined, extraFields?: Partial<MediaItem>) => void;
 }
 
-export default function MediaCard({ item, onClick, onContextMenu }: MediaCardProps) {
+export default function MediaCard({ item, onClick, onContextMenu, onStatusChange }: MediaCardProps) {
   const typeLabel = MEDIA_TYPE_LABELS[item.type];
 
   const isLiked = item.personalRating >= 8; // rating >= 8 is recommended
@@ -36,70 +38,7 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
     }
   };
 
-  // Symbolic status indicator inside card
-  const getStatusBadge = () => {
-    switch (item.status) {
-      case 'completed':
-        return (
-          <div 
-            title="已完成"
-            className="absolute top-3 left-3 z-20 flex items-center justify-center filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]"
-          >
-            <Check size={20} strokeWidth={4} className="text-emerald-500 dark:text-emerald-400" />
-          </div>
-        );
-      case 'progress':
-        return (
-          <div 
-            title="进行中"
-            className="absolute top-3.5 left-3.5 z-20 flex items-center justify-center"
-          >
-            <motion.div 
-              animate={{ 
-                scale: [1, 1.6, 1],
-                opacity: [0.2, 0.5, 0.2]
-              }}
-              transition={{ 
-                repeat: Infinity, 
-                duration: 2.5, 
-                ease: "easeInOut" 
-              }}
-              className="absolute w-4 h-4 bg-amber-500 rounded-full" 
-            />
-            <motion.div 
-              animate={{ 
-                scale: [0.9, 1.1, 0.9],
-              }}
-              transition={{ 
-                repeat: Infinity, 
-                duration: 2.5, 
-                ease: "easeInOut" 
-              }}
-              className="relative w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.5)]" 
-            />
-          </div>
-        );
-      case 'paused':
-        return (
-          <div 
-            title="已搁置"
-            className="absolute top-3.5 left-3.5 z-20 flex items-center justify-center text-zinc-300 drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)]"
-          >
-            <span className="w-2 h-2 bg-zinc-300 rounded-full" />
-          </div>
-        );
-      case 'wishlist':
-      default:
-        return (
-          <div 
-            title="待阅"
-            className="absolute top-3 left-3 z-20 flex items-center justify-center text-zinc-300 drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)]"
-          >
-            <Bookmark size={14} strokeWidth={2.5} fill="currentColor" className="fill-zinc-300/20" />
-          </div>
-        );
-    }
-  };
+  const [showStatusMenu, setShowStatusMenu] = React.useState(false);
 
   return (
     <div
@@ -113,13 +52,13 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
         {/* Image wrapper with overflow hidden for zoom effect */}
         <div className="absolute inset-0 overflow-hidden">
           <img
-            src={item.coverUrl}
+            src={item.coverUrl || generateSvgCover(item.title, item.creator || '佚名', item.type)}
             alt={item.title}
             referrerPolicy="no-referrer"
             loading="lazy"
             className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
             onError={(e) => {
-              e.currentTarget.src = `https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=300&auto=format&fit=crop`;
+              e.currentTarget.src = generateSvgCover(item.title, item.creator || '佚名', item.type);
             }}
           />
         </div>
@@ -140,7 +79,7 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
               {item.creator || '佚名'}
             </span>
             <span className="shrink-0 flex items-center gap-2">
-              {(item.watchedWith || item.reReadLogs?.some(log => log.watchedWith)) && (
+              {(item.watchedWith || item.watchedWithLocation) && (
                 <div className="relative group/user-tooltip">
                   <Users size={12} className="text-emerald-400 drop-shadow-[0_0_2px_rgba(52,211,153,0.5)] cursor-help" />
                   <div className="absolute bottom-full right-0 mb-3 hidden group-hover/user-tooltip:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 shadow-2xl pointer-events-none transition-all animate-fade-in font-sans origin-bottom-right">
@@ -161,11 +100,6 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
                           <span className="text-zinc-300">{item.watchedWithLocation}</span>
                         </p>
                       )}
-                      {!item.watchedWith && item.reReadLogs?.some(log => log.watchedWith) && (
-                        <p className="text-zinc-400 italic text-[10px] font-serif">
-                          包含重温存档记录
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -178,13 +112,137 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
         </div>
       </div>
 
-      {/* Floating Badges (Outside overflow-hidden so tooltips are never cut off) */}
-      
-      {/* Status Badge */}
-      {getStatusBadge()}
+      {/* Floating Status Badge */}
+      <div 
+        className="absolute top-3 left-3 z-45"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative flex items-center">
+          <button
+            onClick={() => setShowStatusMenu(!showStatusMenu)}
+            title={
+              item.status === 'wishlist' ? '想看 (点击可取消/修改)' :
+              item.status === 'progress' ? '在看 (点击可取消/修改)' :
+              item.status === 'completed' ? '已看 (点击可取消/修改)' :
+              '快速标记状态'
+            }
+            className="flex items-center justify-center p-1 hover:scale-110 cursor-pointer bg-transparent border-none outline-none select-none transition-transform duration-200"
+          >
+            {item.status === 'wishlist' && (
+              <Bookmark size={15} strokeWidth={2.5} className="text-sky-500 dark:text-sky-400 fill-sky-500/10 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]" />
+            )}
+            {item.status === 'progress' && (
+              <div className="relative flex items-center justify-center w-4 h-4 shrink-0 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]">
+                <motion.div 
+                  animate={{ 
+                    scale: [1, 1.5, 1],
+                    opacity: [0.2, 0.4, 0.2]
+                  }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 2.5, 
+                    ease: "easeInOut" 
+                  }}
+                  className="absolute w-full h-full rounded-full bg-amber-500 dark:bg-amber-400" 
+                />
+                <motion.div 
+                  animate={{ 
+                    scale: [0.9, 1.1, 0.9],
+                  }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 2.5, 
+                    ease: "easeInOut" 
+                  }}
+                  className="relative w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
+                />
+              </div>
+            )}
+            {item.status === 'completed' && (
+              <Check size={16} strokeWidth={3} className="text-emerald-500 dark:text-emerald-450 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]" />
+            )}
+            {!item.status && (
+              <Plus size={16} strokeWidth={2.5} className={`text-zinc-300 dark:text-zinc-450 hover:text-white dark:hover:text-white filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)] transition-transform duration-200 ${showStatusMenu ? 'rotate-45' : ''}`} />
+            )}
+          </button>
 
-      {/* Re-read completion indicators */}
-      {item.status === 'completed' && item.reReadLogs && item.reReadLogs.length > 0 && (
+          <AnimatePresence>
+            {showStatusMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full mt-2 left-0 flex flex-col items-center gap-1 bg-zinc-900/95 dark:bg-[#1c1e22]/95 border border-zinc-800 dark:border-zinc-750 p-1 rounded-full shadow-lg z-[100]"
+              >
+                {/* Option 1: 加入清单 - 默认本月 */}
+                <button
+                  onClick={() => {
+                    if (item.status === 'wishlist') {
+                      onStatusChange?.(item.id, undefined);
+                    } else {
+                      const currentMonthStr = new Date().toISOString().substring(0, 7);
+                      onStatusChange?.(item.id, 'wishlist', { wishlistMonth: item.wishlistMonth || currentMonthStr });
+                    }
+                    setShowStatusMenu(false);
+                  }}
+                  title={item.status === 'wishlist' ? "取消想看清单" : "标记为想看清单 (本月)"}
+                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                    item.status === 'wishlist'
+                      ? 'bg-sky-500 text-white hover:bg-sky-600'
+                      : 'text-zinc-400 hover:bg-zinc-850 hover:text-sky-400'
+                  }`}
+                >
+                  <Bookmark size={11} strokeWidth={2.5} fill={item.status === 'wishlist' ? 'currentColor' : 'none'} />
+                </button>
+
+                {/* Option 2: 进行中 */}
+                <button
+                  onClick={() => {
+                    if (item.status === 'progress') {
+                      onStatusChange?.(item.id, undefined);
+                    } else {
+                      onStatusChange?.(item.id, 'progress', { startDate: item.startDate || new Date().toISOString().split('T')[0] });
+                    }
+                    setShowStatusMenu(false);
+                  }}
+                  title={item.status === 'progress' ? "取消在看状态" : "标记为在看状态"}
+                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                    item.status === 'progress'
+                      ? 'bg-amber-500 text-white hover:bg-amber-600'
+                      : 'text-zinc-400 hover:bg-zinc-850 hover:text-amber-400'
+                  }`}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                </button>
+
+                {/* Option 3: 已完成 */}
+                <button
+                  onClick={() => {
+                    if (item.status === 'completed') {
+                      onStatusChange?.(item.id, undefined);
+                    } else {
+                      onStatusChange?.(item.id, 'completed', { completedDate: item.completedDate || new Date().toISOString().split('T')[0] });
+                    }
+                    setShowStatusMenu(false);
+                  }}
+                  title={item.status === 'completed' ? "取消已看状态" : "标记为已看状态"}
+                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                    item.status === 'completed'
+                      ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                      : 'text-zinc-400 hover:bg-zinc-850 hover:text-emerald-400'
+                  }`}
+                >
+                  <Check size={11} strokeWidth={2.5} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Independent Re-read completion indicators */}
+      {item.reReadLogs && item.reReadLogs.length > 0 && (
         <div 
           className="absolute top-3 left-9 z-30 flex gap-1 items-center h-5 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
@@ -201,7 +259,7 @@ export default function MediaCard({ item, onClick, onContextMenu }: MediaCardPro
                   <span className="font-serif text-[10px] text-zinc-400 font-normal">{log.date}</span>
                 </div>
                 {log.note ? (
-                   <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal">
+                  <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal">
                     "{log.note}"
                   </p>
                 ) : (

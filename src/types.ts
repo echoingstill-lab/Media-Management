@@ -9,7 +9,6 @@ export interface ReReadLog {
   id: string;
   date: string;
   note: string;
-  watchedWith?: string;
 }
 
 export interface MediaItem {
@@ -19,7 +18,7 @@ export interface MediaItem {
   creator: string; // Author, Director, Studio, etc.
   coverUrl: string;
   description: string;
-  status: 'wishlist' | 'progress' | 'completed' | 'paused'; // 想看/在看/已看/搁置
+  status?: 'wishlist' | 'progress' | 'completed'; // 想看/在看/已看 (可选，未标注)
   progressText?: string; // e.g. "第 5 章", "12/24集"
   startDate?: string;
   completedDate?: string;
@@ -74,5 +73,4 @@ export const STATUS_LABELS: Record<MediaItem['status'], { label: string; color: 
   wishlist: { label: '想看/想读', color: 'bg-sky-500/10 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/20' },
   progress: { label: '进行中', color: 'bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20' },
   completed: { label: '已完成', color: 'bg-[#6B7D8C]/15 dark:bg-[#6B7D8C]/25 text-[#4E5D6A] dark:text-[#A4B7C6] border border-[#6B7D8C]/25' },
-  paused: { label: '已搁置', color: 'bg-stone-500/10 dark:bg-zinc-500/15 text-stone-600 dark:text-stone-400 border border-stone-500/20' },
 };

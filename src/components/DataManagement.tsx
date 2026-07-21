@@ -274,7 +274,7 @@ export default function DataManagement({
           } else if (sVal.includes('在读') || sVal.includes('在看') || sVal.includes('进行中')) {
              parsedStatus = 'progress';
           } else if (sVal.includes('搁置')) {
-             parsedStatus = 'paused';
+             parsedStatus = 'wishlist';
           }
 
           rows.push({
@@ -566,7 +566,6 @@ export default function DataManagement({
                 <option value="completed">已读过 / 已看完 / 已玩过</option>
                 <option value="progress">正在进行中 / 读看中</option>
                 <option value="wishlist">放入想看清单</option>
-                <option value="paused">搁置</option>
               </select>
             </div>
           </div>
@@ -696,7 +695,6 @@ export default function DataManagement({
                         <option value="completed">已读看</option>
                         <option value="progress">进行中</option>
                         <option value="wishlist">想看</option>
-                        <option value="paused">搁置</option>
                       </select>
 
                       {/* Star Display */}

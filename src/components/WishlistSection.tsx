@@ -11,6 +11,7 @@ import {
   Check,
   Play, 
   ArrowRight, 
+  ArrowLeft, 
   AlertCircle, 
   Plus, 
   Sparkles, 
@@ -38,16 +39,81 @@ import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 interface WishlistSectionProps {
   mediaItems: MediaItem[];
   onUpdateItem: (item: MediaItem) => void;
+  onDeleteItem?: (id: string) => void;
   onAddItem: (title: string, type: MediaType, month: string) => void;
+  onAddNew: (title: string) => void;
+  onEditItem?: (item: MediaItem) => void;
   onMoveUnfinished: (fromMonth: string) => void;
   darkMode: boolean;
   onSelectItem?: (id: string) => void;
 }
 
+const MEDIA_TYPE_COLORS: Record<MediaType, { bg: string; text: string; border: string; bgLight: string; bgHover: string; shadow: string }> = {
+  book: { 
+    bg: 'bg-blue-500', 
+    text: 'text-blue-700 dark:text-blue-400', 
+    border: 'border-blue-500/20', 
+    bgLight: 'bg-blue-500/5', 
+    bgHover: 'hover:bg-blue-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(59,130,246,0.4)]' 
+  },
+  movie: { 
+    bg: 'bg-amber-500', 
+    text: 'text-amber-700 dark:text-amber-400', 
+    border: 'border-amber-500/20', 
+    bgLight: 'bg-amber-500/5', 
+    bgHover: 'hover:bg-amber-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(245,158,11,0.4)]' 
+  },
+  tv: { 
+    bg: 'bg-rose-500', 
+    text: 'text-rose-700 dark:text-rose-400', 
+    border: 'border-rose-500/20', 
+    bgLight: 'bg-rose-500/5', 
+    bgHover: 'hover:bg-rose-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(244,63,94,0.4)]' 
+  },
+  anime: { 
+    bg: 'bg-indigo-500', 
+    text: 'text-indigo-700 dark:text-indigo-400', 
+    border: 'border-indigo-500/20', 
+    bgLight: 'bg-indigo-500/5', 
+    bgHover: 'hover:bg-indigo-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(99,102,241,0.4)]' 
+  },
+  music: { 
+    bg: 'bg-emerald-500', 
+    text: 'text-emerald-700 dark:text-emerald-400', 
+    border: 'border-emerald-500/20', 
+    bgLight: 'bg-emerald-500/5', 
+    bgHover: 'hover:bg-emerald-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
+  },
+  game: { 
+    bg: 'bg-purple-500', 
+    text: 'text-purple-700 dark:text-purple-400', 
+    border: 'border-purple-500/20', 
+    bgLight: 'bg-purple-500/5', 
+    bgHover: 'hover:bg-purple-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(168,85,247,0.4)]' 
+  },
+  other: { 
+    bg: 'bg-zinc-500', 
+    text: 'text-zinc-700 dark:text-zinc-400', 
+    border: 'border-zinc-500/20', 
+    bgLight: 'bg-zinc-500/5', 
+    bgHover: 'hover:bg-zinc-500/15',
+    shadow: 'shadow-[0_0_8px_rgba(113,113,122,0.4)]' 
+  },
+};
+
 export default function WishlistSection({
   mediaItems,
   onUpdateItem,
+  onDeleteItem,
   onAddItem,
+  onAddNew,
+  onEditItem,
   onMoveUnfinished,
   darkMode,
   onSelectItem,
@@ -67,6 +133,15 @@ export default function WishlistSection({
     const nextY = date.getFullYear();
     const nextM = String(date.getMonth() + 1).padStart(2, '0');
     return `${nextY}-${nextM}`;
+  };
+
+  // Helper to get previous month relative to a month string
+  const getPreviousMonthStr = (monthStr: string) => {
+    const [y, m] = monthStr.split('-').map(Number);
+    const date = new Date(y, m - 2, 1);
+    const prevY = date.getFullYear();
+    const prevM = String(date.getMonth() + 1).padStart(2, '0');
+    return `${prevY}-${prevM}`;
   };
 
   // Setup the month keys
@@ -96,6 +171,67 @@ export default function WishlistSection({
 
   const pastMonths = getPastMonths();
 
+  // Unified Search State
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+
+  const filteredSuggestions = globalSearch.trim() 
+    ? mediaItems.filter(item => 
+        item.title.toLowerCase().includes(globalSearch.toLowerCase()) ||
+        item.creator.toLowerCase().includes(globalSearch.toLowerCase())
+      ).slice(0, 5)
+    : [];
+
+  const handleGlobalSearchSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!globalSearch.trim()) return;
+
+    // Check if exactly matches something in library
+    const exactMatch = mediaItems.find(item => item.title.toLowerCase() === globalSearch.trim().toLowerCase());
+    if (exactMatch) {
+      if (onEditItem) {
+        onEditItem({
+          ...exactMatch,
+          wishlistMonth: currentMonthStr,
+          status: exactMatch.status === 'completed' ? 'wishlist' : exactMatch.status,
+        });
+      } else {
+        onUpdateItem({
+          ...exactMatch,
+          wishlistMonth: currentMonthStr,
+          status: exactMatch.status === 'completed' ? 'wishlist' : exactMatch.status,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      setGlobalSearch('');
+      setShowSearchSuggestions(false);
+    } else {
+      // Not found, open add modal
+      onAddNew(globalSearch.trim());
+      setGlobalSearch('');
+      setShowSearchSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (item: MediaItem) => {
+    if (onEditItem) {
+      onEditItem({
+        ...item,
+        wishlistMonth: currentMonthStr,
+        status: item.status === 'completed' ? 'wishlist' : item.status,
+      });
+    } else {
+      onUpdateItem({
+        ...item,
+        wishlistMonth: currentMonthStr,
+        status: item.status === 'completed' ? 'wishlist' : item.status,
+        updatedAt: new Date().toISOString()
+      });
+    }
+    setGlobalSearch('');
+    setShowSearchSuggestions(false);
+  };
+
   // Collapsible state for each month. Default current to true (open), others to false (collapsed)
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({
     [currentMonthStr]: true,
@@ -120,6 +256,7 @@ export default function WishlistSection({
   // Local state for typed fields in inline add forms
   const [quickTitle, setQuickTitle] = useState('');
   const [quickType, setQuickType] = useState<MediaType>('book');
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // Custom states for editing companion records without modal
   const [editingCompanionItem, setEditingCompanionItem] = useState<MediaItem | null>(null);
@@ -168,12 +305,20 @@ export default function WishlistSection({
 
   const handlePopupImportItem = (item: MediaItem) => {
     if (!addingToTarget) return;
-    onUpdateItem({
-      ...item,
-      wishlistMonth: addingToTarget.month,
-      status: item.status || 'wishlist',
-      updatedAt: new Date().toISOString()
-    });
+    if (onEditItem) {
+      onEditItem({
+        ...item,
+        wishlistMonth: addingToTarget.month,
+        status: item.status || 'wishlist',
+      });
+    } else {
+      onUpdateItem({
+        ...item,
+        wishlistMonth: addingToTarget.month,
+        status: item.status || 'wishlist',
+        updatedAt: new Date().toISOString()
+      });
+    }
     setAddingToTarget(null); // Close popup
   };
 
@@ -404,7 +549,7 @@ export default function WishlistSection({
                                             duration: 2.5, 
                                             ease: "easeInOut" 
                                           }}
-                                          className="absolute w-full h-full bg-amber-500 rounded-full group-hover/dot:bg-emerald-500" 
+                                          className="absolute w-full h-full rounded-full group-hover/dot:bg-emerald-500 bg-amber-500" 
                                         />
                                         <motion.div 
                                           animate={{ 
@@ -415,7 +560,7 @@ export default function WishlistSection({
                                             duration: 2.5, 
                                             ease: "easeInOut" 
                                           }}
-                                          className="relative w-2 h-2 bg-amber-500 rounded-full group-hover/dot:bg-emerald-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
+                                          className="relative w-2 h-2 rounded-full group-hover/dot:bg-emerald-500 bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
                                         />
                                       </button>
                                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-serif font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
@@ -461,24 +606,46 @@ export default function WishlistSection({
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                 {item.status === 'wishlist' && (
-                                  <div className="relative group/tooltip">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (window.confirm(`确定要将 "${item.title}" 顺延至下个月吗？`)) {
+                                  <div className="flex items-center gap-1">
+                                    {/* Move back to previous month (only shown in next month list) */}
+                                    {monthStr === nextMonthStr && (
+                                      <div className="relative group/tooltip">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onUpdateItem({
+                                              ...item,
+                                              wishlistMonth: getPreviousMonthStr(monthStr),
+                                              updatedAt: new Date().toISOString()
+                                            });
+                                          }}
+                                          className="p-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-none transition-all cursor-pointer"
+                                        >
+                                          <ArrowLeft size={12} />
+                                        </button>
+                                        <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-serif font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                          挪到上月
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="relative group/tooltip">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           onUpdateItem({
                                             ...item,
                                             wishlistMonth: getNextMonthStr(monthStr),
                                             updatedAt: new Date().toISOString()
                                           });
-                                        }
-                                      }}
-                                      className="p-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-none transition-all cursor-pointer"
-                                    >
-                                      <ArrowRight size={12} />
-                                    </button>
-                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-serif font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
-                                      挪到下月
+                                        }}
+                                        className="p-1.5 border border-[#E6E0D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-none transition-all cursor-pointer"
+                                      >
+                                        <ArrowRight size={12} />
+                                      </button>
+                                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-zinc-950 dark:bg-zinc-800 text-white dark:text-zinc-200 text-[10px] font-serif font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none border border-zinc-800 dark:border-zinc-700">
+                                        挪到下月
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -493,7 +660,7 @@ export default function WishlistSection({
                                           updatedAt: new Date().toISOString()
                                         });
                                       }}
-                                      className="p-1.5 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded-none transition-all cursor-pointer"
+                                      className="p-1.5 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/15 text-amber-700 dark:text-amber-400 dark:border-amber-500/10 dark:bg-amber-500/5 dark:hover:bg-amber-500/10 rounded-none transition-all cursor-pointer"
                                     >
                                       <Clock size={12} />
                                     </button>
@@ -522,6 +689,63 @@ export default function WishlistSection({
                                     </div>
                                   </div>
                                 )}
+                                
+                                <AnimatePresence mode="wait">
+                                  {deletingItemId === item.id ? (
+                                    <motion.div 
+                                      key="confirm"
+                                      initial={{ opacity: 0, x: 10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      exit={{ opacity: 0, x: 10 }}
+                                      className="flex items-center gap-1 font-sans"
+                                    >
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onUpdateItem({
+                                            ...item,
+                                            wishlistMonth: undefined,
+                                            updatedAt: new Date().toISOString()
+                                          });
+                                          setDeletingItemId(null);
+                                        }}
+                                        className="px-2 py-0.5 text-[10px] font-sans font-bold bg-red-600 text-white hover:bg-red-700 transition-all rounded-none cursor-pointer whitespace-nowrap"
+                                      >
+                                        确认移出
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeletingItemId(null);
+                                        }}
+                                        className="p-1 border border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                                      >
+                                        <X size={10} />
+                                      </button>
+                                    </motion.div>
+                                  ) : (
+                                    <motion.div 
+                                      key="delete-btn"
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      exit={{ opacity: 0 }}
+                                      className="relative group/tooltip"
+                                    >
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeletingItemId(item.id);
+                                        }}
+                                        className="p-1.5 border border-red-500/10 hover:bg-red-500/10 text-zinc-400 hover:text-red-500 rounded-none transition-all cursor-pointer"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-red-600 text-white text-[10px] font-serif font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none">
+                                        移出清单
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
                               {/* Default state companion icon - Non-clickable marker */}
                               {(item.watchedWith || item.watchedWithLocation) && (
@@ -591,6 +815,62 @@ export default function WishlistSection({
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
+                                  <AnimatePresence mode="wait">
+                                    {deletingItemId === item.id ? (
+                                      <motion.div 
+                                        key="confirm-fin"
+                                        initial={{ opacity: 0, x: 10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        className="flex items-center gap-1 font-sans"
+                                      >
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onUpdateItem({
+                                              ...item,
+                                              wishlistMonth: undefined,
+                                              updatedAt: new Date().toISOString()
+                                            });
+                                            setDeletingItemId(null);
+                                          }}
+                                          className="px-2 py-0.5 text-[10px] font-sans font-bold bg-red-600 text-white hover:bg-red-700 transition-all rounded-none cursor-pointer whitespace-nowrap"
+                                        >
+                                          确认移出
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeletingItemId(null);
+                                          }}
+                                          className="p-1 border border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                                        >
+                                          <X size={10} />
+                                        </button>
+                                      </motion.div>
+                                    ) : (
+                                      <motion.div 
+                                        key="delete-btn-fin"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="relative group/tooltip opacity-0 group-hover/fin:opacity-100 transition-opacity font-sans"
+                                      >
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeletingItemId(item.id);
+                                          }}
+                                          className="p-1 text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                        <div className="absolute bottom-full right-0 mb-2 hidden group-hover/tooltip:block bg-red-600 text-white text-[10px] font-serif font-semibold py-1 px-2 whitespace-nowrap shadow-lg z-50 pointer-events-none rounded-none">
+                                          移出清单
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
                                   {/* Default state icon for finished list - Non-clickable marker */}
                                   {(item.watchedWith || item.watchedWithLocation) && (
                                     <div className="shrink-0 mr-1.5 relative group/watched">
@@ -652,7 +932,7 @@ export default function WishlistSection({
                                 autoFocus
                                 type="text"
                                 required
-                                placeholder="New title..."
+                                placeholder="输入书名/电影/剧名等..."
                                 value={newQuickItemTitle}
                                 onChange={(e) => setNewQuickItemTitle(e.target.value)}
                                 className="flex-grow text-xs bg-white dark:bg-zinc-950 border border-[#E6E0D5] dark:border-zinc-800 rounded-none px-2.5 py-2 text-zinc-850 dark:text-zinc-200 focus:outline-none focus:border-[#4A3B32]"
@@ -665,36 +945,45 @@ export default function WishlistSection({
 
                           {/* Library Selection */}
                           <div className="space-y-3">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-serif block">从库中选择</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-serif block">
+                              {newQuickItemTitle.trim() ? `在库中搜索 "${newQuickItemTitle}"` : '从库中选择'}
+                            </span>
                             
                             <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                              {popupCandidates.length > 0 ? (
-                                popupCandidates.slice(0, 10).map(item => (
-                                  <div key={item.id} className="p-2 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 flex items-center justify-between gap-2 text-xs hover:border-zinc-300 dark:hover:border-zinc-700 group/picker-item">
-                                    <div className="flex items-center gap-2 flex-grow min-w-0">
-                                      <span 
-                                        onClick={() => onSelectItem && onSelectItem(item.id)}
-                                        className="font-bold truncate dark:text-zinc-200 cursor-pointer hover:text-[#4A3B32] dark:hover:text-[#DDDAC4] hover:underline decoration-1 underline-offset-2"
-                                        title="查看该库中项目详情"
+                              {(() => {
+                                const filteredCandidates = popupCandidates.filter(item => {
+                                  if (!newQuickItemTitle.trim()) return true;
+                                  const q = newQuickItemTitle.toLowerCase();
+                                  return item.title.toLowerCase().includes(q) || (item.creator && item.creator.toLowerCase().includes(q));
+                                });
+                                return filteredCandidates.length > 0 ? (
+                                  filteredCandidates.slice(0, 15).map(item => (
+                                    <div key={item.id} className="p-2 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 flex items-center justify-between gap-2 text-xs hover:border-zinc-300 dark:hover:border-zinc-700 group/picker-item">
+                                      <div className="flex items-center gap-2 flex-grow min-w-0">
+                                        <span 
+                                          onClick={() => onSelectItem && onSelectItem(item.id)}
+                                          className="font-bold truncate dark:text-zinc-200 cursor-pointer hover:text-[#4A3B32] dark:hover:text-[#DDDAC4] hover:underline decoration-1 underline-offset-2"
+                                          title="查看该库中项目详情"
+                                        >
+                                          {item.title}
+                                        </span>
+                                        {item.status === 'completed' && (
+                                          <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 font-bold uppercase tracking-tighter shrink-0">已阅</span>
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={() => handlePopupImportItem(item)}
+                                        className="px-2 py-1 bg-zinc-50 dark:bg-[#111214] border border-zinc-200 dark:border-zinc-800 text-[10px] font-serif font-bold uppercase cursor-pointer hover:bg-[#4A3B32] hover:text-white dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] shrink-0"
+                                        title={item.status === 'completed' ? '重新开始重温' : '加入清单'}
                                       >
-                                        {item.title}
-                                      </span>
-                                      {item.status === 'completed' && (
-                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 font-bold uppercase tracking-tighter shrink-0">已阅</span>
-                                      )}
+                                        {item.status === 'completed' ? '+ RE-READ' : '+ ADD'}
+                                      </button>
                                     </div>
-                                    <button
-                                      onClick={() => handlePopupImportItem(item)}
-                                      className="px-2 py-1 bg-zinc-50 dark:bg-[#111214] border border-zinc-200 dark:border-zinc-800 text-[10px] font-serif font-bold uppercase cursor-pointer hover:bg-[#4A3B32] hover:text-white dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] shrink-0"
-                                      title={item.status === 'completed' ? '重新开始重温' : '加入清单'}
-                                    >
-                                      {item.status === 'completed' ? '+ RE-READ' : '+ ADD'}
-                                    </button>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-[10px] text-zinc-400 italic text-center py-2">库中没有找到其他项目。</p>
-                              )}
+                                  ))
+                                ) : (
+                                  <p className="text-[10px] text-zinc-400 italic text-center py-2">没有在库中找到相关项目，可点击上方 [新增 / NEW]</p>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -728,7 +1017,7 @@ export default function WishlistSection({
 
   return (
     <div className="space-y-6">
-      
+
       {/* 1. CURRENT MONTH TARGETS (PINNED) */}
       {renderMonthBoard(currentMonthStr, 'current')}
 
@@ -835,6 +1124,8 @@ export default function WishlistSection({
             </motion.div>
           </div>
         )}
+
+
       </AnimatePresence>
     </div>
   );

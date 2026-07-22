@@ -35,6 +35,7 @@ import {
   Users
 } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
+import { deduplicateLogs } from '../utils/helpers';
 
 interface WishlistSectionProps {
   mediaItems: MediaItem[];
@@ -182,6 +183,71 @@ export default function WishlistSection({
       ).slice(0, 5)
     : [];
 
+  // Helper to restart/re-add a media item for re-reading, archiving previous note into reReadLogs & clearing personalNote for the new session
+  const restartMediaItemForReRead = (item: MediaItem, targetMonth: string): MediaItem => {
+    let updatedLogs = deduplicateLogs(item.reReadLogs || []);
+    const prevDate = item.completedDate || new Date().toISOString().split('T')[0];
+    const prevNote = item.personalNote?.trim();
+
+    if (prevNote) {
+      if (!updatedLogs[0] || updatedLogs[0].note?.trim() !== prevNote) {
+        updatedLogs = [
+          { id: Math.random().toString(36).substring(2, 9), date: prevDate, note: prevNote },
+          ...updatedLogs
+        ];
+      }
+    } else if (item.completedDate && updatedLogs.length === 0) {
+      updatedLogs = [
+        { id: Math.random().toString(36).substring(2, 9), date: item.completedDate, note: '首次完成感悟' },
+        ...updatedLogs
+      ];
+    }
+
+    updatedLogs = deduplicateLogs(updatedLogs);
+
+    return {
+      ...item,
+      wishlistMonth: targetMonth,
+      status: 'wishlist',
+      personalNote: '', // Reset note to blank for new re-read session
+      reReadLogs: updatedLogs,
+      reReadCount: updatedLogs.length,
+      updatedAt: new Date().toISOString()
+    };
+  };
+
+  const handleCompleteWishlistItem = (item: MediaItem) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let newLogs = deduplicateLogs(item.reReadLogs || []);
+    const currentNote = item.personalNote?.trim();
+
+    if (currentNote) {
+      if (!newLogs[0] || newLogs[0].note?.trim() !== currentNote) {
+        newLogs = [
+          { id: Math.random().toString(36).substring(2, 9), date: item.completedDate || todayStr, note: currentNote },
+          ...newLogs
+        ];
+      }
+    } else if (item.completedDate && newLogs.length === 0) {
+      newLogs = [
+        { id: Math.random().toString(36).substring(2, 9), date: item.completedDate, note: '首次完成感悟' },
+        ...newLogs
+      ];
+    }
+
+    newLogs = deduplicateLogs(newLogs);
+
+    onUpdateItem({
+      ...item,
+      status: 'completed',
+      completedDate: todayStr,
+      reReadCount: newLogs.length > 0 ? newLogs.length : (item.reReadCount || 0),
+      reReadLogs: newLogs,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
   const handleGlobalSearchSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!globalSearch.trim()) return;
@@ -189,20 +255,7 @@ export default function WishlistSection({
     // Check if exactly matches something in library
     const exactMatch = mediaItems.find(item => item.title.toLowerCase() === globalSearch.trim().toLowerCase());
     if (exactMatch) {
-      if (onEditItem) {
-        onEditItem({
-          ...exactMatch,
-          wishlistMonth: currentMonthStr,
-          status: exactMatch.status === 'completed' ? 'wishlist' : exactMatch.status,
-        });
-      } else {
-        onUpdateItem({
-          ...exactMatch,
-          wishlistMonth: currentMonthStr,
-          status: exactMatch.status === 'completed' ? 'wishlist' : exactMatch.status,
-          updatedAt: new Date().toISOString()
-        });
-      }
+      onUpdateItem(restartMediaItemForReRead(exactMatch, currentMonthStr));
       setGlobalSearch('');
       setShowSearchSuggestions(false);
     } else {
@@ -214,20 +267,7 @@ export default function WishlistSection({
   };
 
   const handleSelectSuggestion = (item: MediaItem) => {
-    if (onEditItem) {
-      onEditItem({
-        ...item,
-        wishlistMonth: currentMonthStr,
-        status: item.status === 'completed' ? 'wishlist' : item.status,
-      });
-    } else {
-      onUpdateItem({
-        ...item,
-        wishlistMonth: currentMonthStr,
-        status: item.status === 'completed' ? 'wishlist' : item.status,
-        updatedAt: new Date().toISOString()
-      });
-    }
+    onUpdateItem(restartMediaItemForReRead(item, currentMonthStr));
     setGlobalSearch('');
     setShowSearchSuggestions(false);
   };
@@ -297,28 +337,22 @@ export default function WishlistSection({
 
   const handlePopupQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuickItemTitle.trim() || !addingToTarget) return;
-    onAddItem(newQuickItemTitle.trim(), addingToTarget.type, addingToTarget.month);
+    const title = newQuickItemTitle.trim();
+    if (!title || !addingToTarget) return;
+
+    const existing = mediaItems.find(item => item.title.toLowerCase() === title.toLowerCase());
+    if (existing) {
+      onUpdateItem(restartMediaItemForReRead(existing, addingToTarget.month));
+    } else {
+      onAddItem(title, addingToTarget.type, addingToTarget.month);
+    }
     setNewQuickItemTitle('');
     setAddingToTarget(null); // Close popup modal
   };
 
   const handlePopupImportItem = (item: MediaItem) => {
     if (!addingToTarget) return;
-    if (onEditItem) {
-      onEditItem({
-        ...item,
-        wishlistMonth: addingToTarget.month,
-        status: item.status || 'wishlist',
-      });
-    } else {
-      onUpdateItem({
-        ...item,
-        wishlistMonth: addingToTarget.month,
-        status: item.status || 'wishlist',
-        updatedAt: new Date().toISOString()
-      });
-    }
+    onUpdateItem(restartMediaItemForReRead(item, addingToTarget.month));
     setAddingToTarget(null); // Close popup
   };
 
@@ -341,18 +375,20 @@ export default function WishlistSection({
 
   const handleQuickAdd = (e: React.FormEvent, targetMonth: string) => {
     e.preventDefault();
-    if (!quickTitle.trim()) return;
-    onAddItem(quickTitle.trim(), quickType, targetMonth);
+    const title = quickTitle.trim();
+    if (!title) return;
+
+    const existing = mediaItems.find(item => item.title.toLowerCase() === title.toLowerCase());
+    if (existing) {
+      onUpdateItem(restartMediaItemForReRead(existing, targetMonth));
+    } else {
+      onAddItem(title, quickType, targetMonth);
+    }
     setQuickTitle('');
   };
 
   const handleImportItem = (item: MediaItem, targetMonth: string) => {
-    onUpdateItem({
-      ...item,
-      wishlistMonth: targetMonth,
-      status: 'wishlist',
-      updatedAt: new Date().toISOString()
-    });
+    onUpdateItem(restartMediaItemForReRead(item, targetMonth));
   };
 
   // Filter candidates for popup import (items of the correct type not already in the target month)
@@ -530,12 +566,7 @@ export default function WishlistSection({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          onUpdateItem({
-                                            ...item,
-                                            status: 'completed',
-                                            completedDate: new Date().toISOString().split('T')[0],
-                                            updatedAt: new Date().toISOString()
-                                          });
+                                          handleCompleteWishlistItem(item);
                                         }}
                                         className="relative flex items-center justify-center w-4 h-4 shrink-0 cursor-pointer group/dot"
                                       >
@@ -572,12 +603,7 @@ export default function WishlistSection({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          onUpdateItem({
-                                            ...item,
-                                            status: 'completed',
-                                            completedDate: new Date().toISOString().split('T')[0],
-                                            updatedAt: new Date().toISOString()
-                                          });
+                                          handleCompleteWishlistItem(item);
                                         }}
                                         className="text-zinc-400 dark:text-zinc-600 hover:text-emerald-600 transition-colors cursor-pointer"
                                       >
@@ -600,6 +626,11 @@ export default function WishlistSection({
                                       >
                                         {item.title}
                                       </span>
+                                      {Boolean(item.completedDate || (item.reReadLogs && item.reReadLogs.length > 0) || ((item.reReadCount ?? 0) > 0)) && (
+                                        <span className="text-[9px] px-1 py-0.2 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 font-serif font-bold shrink-0">
+                                          重温
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -962,7 +993,7 @@ export default function WishlistSection({
                                 });
                                 return filteredCandidates.length > 0 ? (
                                   filteredCandidates.slice(0, 15).map(item => (
-                                    <div key={item.id} className="p-2 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 flex items-center justify-between gap-2 text-xs hover:border-zinc-300 dark:hover:border-zinc-700 group/picker-item">
+                                    <div key={item.id} className="p-2 bg-white dark:bg-zinc-900 border border-[#E6E0D5] dark:border-zinc-800 flex items-center justify-between gap-2 text-xs hover:border-[#4A3B32]/40 dark:hover:border-zinc-700 group/picker-item">
                                       <div className="flex items-center gap-2 flex-grow min-w-0">
                                         <span 
                                           onClick={() => onSelectItem && onSelectItem(item.id)}
@@ -971,16 +1002,18 @@ export default function WishlistSection({
                                         >
                                           {item.title}
                                         </span>
-                                        {item.status === 'completed' && (
-                                          <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1 py-0.5 font-bold uppercase tracking-tighter shrink-0">已阅</span>
+                                        {Boolean(item.status === 'completed' || !!item.completedDate || (item.reReadLogs && item.reReadLogs.length > 0) || ((item.reReadCount ?? 0) > 0)) && (
+                                          <span className="text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 px-1 py-0.5 font-bold uppercase tracking-tighter shrink-0 font-serif">
+                                            {item.status === 'completed' ? '已阅' : '重温过'}
+                                          </span>
                                         )}
                                       </div>
                                       <button
                                         onClick={() => handlePopupImportItem(item)}
                                         className="px-2 py-1 bg-zinc-50 dark:bg-[#111214] border border-zinc-200 dark:border-zinc-800 text-[10px] font-serif font-bold uppercase cursor-pointer hover:bg-[#4A3B32] hover:text-white dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] shrink-0"
-                                        title={item.status === 'completed' ? '重新开始重温' : '加入清单'}
+                                        title={Boolean(item.status === 'completed' || !!item.completedDate || (item.reReadLogs && item.reReadLogs.length > 0) || ((item.reReadCount ?? 0) > 0)) ? '重新开始重温' : '加入清单'}
                                       >
-                                        {item.status === 'completed' ? '+ RE-READ' : '+ ADD'}
+                                        {Boolean(item.status === 'completed' || !!item.completedDate || (item.reReadLogs && item.reReadLogs.length > 0) || ((item.reReadCount ?? 0) > 0)) ? '+ RESTART' : '+ ADD'}
                                       </button>
                                     </div>
                                   ))

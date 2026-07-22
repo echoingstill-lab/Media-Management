@@ -7,7 +7,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square, CheckCheck } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
-import { generateSvgCover } from '../utils/helpers';
+import { generateSvgCover, deduplicateLogs } from '../utils/helpers';
 
 interface MediaCardProps {
   key?: React.Key;
@@ -246,34 +246,38 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
       </div>
 
       {/* Independent Re-read completion indicators */}
-      {item.reReadLogs && item.reReadLogs.length > 0 && (
-        <div 
-          className="absolute top-3 left-12 z-30 flex gap-1.5 items-center h-7 pointer-events-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {item.reReadLogs.map((log, index) => (
-            <div 
-              key={log.id || index} 
-              className="w-2.5 h-2.5 rounded-none bg-emerald-400 border border-zinc-950/60 shadow-md relative group/dot cursor-help transition-transform hover:scale-125"
-            >
-              {/* Tooltip on hover */}
-              <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
-                <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center justify-between uppercase tracking-wider text-[10px]">
-                  <span>重温 {index + 1}</span>
-                  <span className="font-serif text-[10px] text-zinc-400 font-normal">{log.date}</span>
+      {(() => {
+        const logs = deduplicateLogs(item.reReadLogs || []);
+        if (logs.length === 0) return null;
+        return (
+          <div 
+            className="absolute top-3 left-12 z-30 flex gap-1.5 items-center h-7 pointer-events-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {logs.map((log, index) => (
+              <div 
+                key={log.id || index} 
+                className="w-2.5 h-2.5 rounded-none bg-emerald-400 border border-zinc-950/60 shadow-md relative group/dot cursor-help transition-transform hover:scale-125"
+              >
+                {/* Tooltip on hover */}
+                <div className="absolute left-0 bottom-full mb-2 hidden group-hover/dot:flex flex-col z-[9999] bg-zinc-900/95 border border-zinc-800 text-white rounded-none p-3 text-[11px] w-64 sm:w-72 shadow-2xl pointer-events-none transition-all animate-fade-in">
+                  <div className="font-bold text-emerald-400 border-b border-zinc-800 pb-1.5 mb-1.5 font-serif flex items-center justify-between uppercase tracking-wider text-[10px]">
+                    <span>重温 {logs.length - index}</span>
+                    <span className="font-serif text-[10px] text-zinc-400 font-normal">{log.date}</span>
+                  </div>
+                  {log.note ? (
+                    <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal">
+                      "{log.note}"
+                    </p>
+                  ) : (
+                    <span className="text-zinc-500 italic font-serif text-[10px]">无温读备注</span>
+                  )}
                 </div>
-                {log.note ? (
-                  <p className="text-zinc-300 font-serif leading-relaxed text-[10px] break-words whitespace-normal">
-                    "{log.note}"
-                  </p>
-                ) : (
-                  <span className="text-zinc-500 italic font-serif text-[10px]">无温读备注</span>
-                )}
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Static rating badge on top right */}
       {item.personalRating && item.personalRating > 0 ? (

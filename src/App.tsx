@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder } from 'lucide-react';
 import { MediaItem, Collection, CheckInHabit, CheckInLog, MediaType, MEDIA_TYPE_LABELS } from './types';
-import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS } from './utils/helpers';
+import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS, deduplicateLogs } from './utils/helpers';
 
 // Components
 import MediaCard from './components/MediaCard';
@@ -25,6 +25,29 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
     return localStorage.getItem('media_management_user');
   });
+
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    return localStorage.getItem('media_management_is_admin') === 'true';
+  });
+
+  const handleLogin = (username: string, adminStatus = false) => {
+    setCurrentUser(username);
+    localStorage.setItem('media_management_user', username);
+    if (adminStatus || username.toLowerCase() === 'admin') {
+      setIsAdmin(true);
+      localStorage.setItem('media_management_is_admin', 'true');
+    } else {
+      setIsAdmin(false);
+      localStorage.removeItem('media_management_is_admin');
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setIsAdmin(false);
+    localStorage.removeItem('media_management_user');
+    localStorage.removeItem('media_management_is_admin');
+  };
 
   // --- Persistent LocalState ---
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
@@ -148,15 +171,7 @@ export default function App() {
   }, []);
 
   // --- Authentication Handlers ---
-  const handleLogin = (username: string) => {
-    setCurrentUser(username);
-    localStorage.setItem('media_management_user', username);
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('media_management_user');
-  };
+  // (already defined above)
 
   // --- Handlers ---
   const handleCreateOrUpdateMedia = (itemData: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
@@ -210,28 +225,55 @@ export default function App() {
   };
 
   const handleAddWishlistItem = (title: string, type: MediaType, month: string) => {
-    const now = new Date().toISOString();
-    const newItem: MediaItem = {
-      id: `media-${Date.now()}`,
-      title,
-      type,
-      creator: '',
-      coverUrl: '',
-      description: '',
-      status: 'wishlist',
-      tags: [],
-      collections: [],
-      wishlistMonth: month,
-      reReadCount: 0,
-      reReadLogs: [],
-      personalRating: 0,
-      personalNote: '',
-      noteImages: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    setActiveMediaEdit(newItem);
-    setShowAddModal(true);
+    const existing = mediaItems.find(i => i.title.toLowerCase() === title.trim().toLowerCase());
+    if (existing) {
+      let updatedLogs = deduplicateLogs(existing.reReadLogs || []);
+      const prevDate = existing.completedDate || new Date().toISOString().split('T')[0];
+      const prevNote = existing.personalNote?.trim();
+
+      if (prevNote) {
+        if (!updatedLogs[0] || updatedLogs[0].note?.trim() !== prevNote) {
+          updatedLogs = [{ id: Math.random().toString(36).substring(2, 9), date: prevDate, note: prevNote }, ...updatedLogs];
+        }
+      } else if (existing.completedDate && updatedLogs.length === 0) {
+        updatedLogs = [{ id: Math.random().toString(36).substring(2, 9), date: existing.completedDate, note: '首次完成感悟' }, ...updatedLogs];
+      }
+
+      updatedLogs = deduplicateLogs(updatedLogs);
+
+      handleUpdateWishlistItem({
+        ...existing,
+        wishlistMonth: month,
+        status: 'wishlist',
+        personalNote: '', // Clear note for new re-read session
+        reReadLogs: updatedLogs,
+        reReadCount: updatedLogs.length,
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      const now = new Date().toISOString();
+      const newItem: MediaItem = {
+        id: `media-${Date.now()}`,
+        title,
+        type,
+        creator: '',
+        coverUrl: '',
+        description: '',
+        status: 'wishlist',
+        tags: [],
+        collections: [],
+        wishlistMonth: month,
+        reReadCount: 0,
+        reReadLogs: [],
+        personalRating: 0,
+        personalNote: '',
+        noteImages: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      setActiveMediaEdit(newItem);
+      setShowAddModal(true);
+    }
   };
 
   const handleMoveUnfinishedWishlist = (fromMonth: string) => {
@@ -375,6 +417,7 @@ export default function App() {
       <AISettingsModal 
         isOpen={showAISettings}
         onClose={() => setShowAISettings(false)}
+        isAdmin={isAdmin}
       />
 
       {/* Main Container */}
@@ -399,8 +442,13 @@ export default function App() {
           <div className="flex items-center gap-3 self-end md:self-auto text-xs">
             <div className="flex items-center gap-2 px-3 py-1.5 border border-zinc-800 bg-[#121214] rounded-none">
               <User size={13} className="opacity-60" />
-              <span className="font-bold uppercase text-[12px] tracking-wider text-zinc-400 font-serif">
-                用户: {currentUser}
+              <span className="font-bold uppercase text-[12px] tracking-wider text-zinc-400 font-serif flex items-center gap-1.5">
+                <span>用户: {currentUser}</span>
+                {isAdmin && (
+                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0.5 font-sans font-semibold">
+                    👑 管理员
+                  </span>
+                )}
               </span>
             </div>
 
@@ -492,29 +540,58 @@ export default function App() {
               onDeleteItem={handleDeleteMedia}
               onAddItem={handleAddWishlistItem}
               onAddNew={(title) => {
-                const now = new Date();
-                const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                const nowIso = now.toISOString();
-                setActiveMediaEdit({ 
-                  id: `media-${Date.now()}`,
-                  title, 
-                  type: 'book', 
-                  creator: '',
-                  coverUrl: '',
-                  description: '',
-                  status: 'wishlist',
-                  collections: [],
-                  tags: [],
-                  wishlistMonth: currentMonthStr,
-                  reReadCount: 0,
-                  reReadLogs: [],
-                  personalRating: 0,
-                  personalNote: '',
-                  noteImages: [],
-                  createdAt: nowIso,
-                  updatedAt: nowIso,
-                });
-                setShowAddModal(true);
+                const existing = mediaItems.find(i => i.title.toLowerCase() === title.trim().toLowerCase());
+                if (existing) {
+                  const now = new Date();
+                  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                  let updatedLogs = deduplicateLogs(existing.reReadLogs || []);
+                  const prevDate = existing.completedDate || new Date().toISOString().split('T')[0];
+                  const prevNote = existing.personalNote?.trim();
+
+                  if (prevNote) {
+                    if (!updatedLogs[0] || updatedLogs[0].note?.trim() !== prevNote) {
+                      updatedLogs = [{ id: Math.random().toString(36).substring(2, 9), date: prevDate, note: prevNote }, ...updatedLogs];
+                    }
+                  } else if (existing.completedDate && updatedLogs.length === 0) {
+                    updatedLogs = [{ id: Math.random().toString(36).substring(2, 9), date: existing.completedDate, note: '首次完成感悟' }, ...updatedLogs];
+                  }
+
+                  updatedLogs = deduplicateLogs(updatedLogs);
+
+                  handleUpdateWishlistItem({
+                    ...existing,
+                    wishlistMonth: currentMonthStr,
+                    status: 'wishlist',
+                    personalNote: '', // Clear note for new re-read session
+                    reReadLogs: updatedLogs,
+                    reReadCount: updatedLogs.length,
+                    updatedAt: new Date().toISOString()
+                  });
+                } else {
+                  const now = new Date();
+                  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                  const nowIso = now.toISOString();
+                  setActiveMediaEdit({ 
+                    id: `media-${Date.now()}`,
+                    title, 
+                    type: 'book', 
+                    creator: '',
+                    coverUrl: '',
+                    description: '',
+                    status: 'wishlist',
+                    collections: [],
+                    tags: [],
+                    wishlistMonth: currentMonthStr,
+                    reReadCount: 0,
+                    reReadLogs: [],
+                    personalRating: 0,
+                    personalNote: '',
+                    noteImages: [],
+                    createdAt: nowIso,
+                    updatedAt: nowIso,
+                  });
+                  setShowAddModal(true);
+                }
               }}
               onEditItem={(item) => {
                 setActiveMediaEdit(item);

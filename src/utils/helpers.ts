@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MediaItem, Collection, CheckInHabit, CheckInLog } from '../types';
+import { MediaItem, Collection, CheckInHabit, CheckInLog, ReReadLog } from '../types';
 
 // Compress uploaded/pasted images to save LocalStorage space
 export function compressImage(file: File, maxWidth = 400, quality = 0.7): Promise<string> {
@@ -524,4 +524,23 @@ export function calculateStreak(logs: CheckInLog[], habitId?: string): number {
   }
 
   return streak;
+}
+
+// Deduplicate logs to prevent identical repeated records
+export function deduplicateLogs(logs: ReReadLog[]): ReReadLog[] {
+  if (!logs || logs.length === 0) return [];
+  const result: ReReadLog[] = [];
+  for (const log of logs) {
+    const prev = result[result.length - 1];
+    // Skip if adjacent log in result has identical id or identical non-empty note
+    if (
+      prev &&
+      ((log.id && prev.id === log.id) ||
+        (prev.note && log.note && prev.note.trim() === log.note.trim()))
+    ) {
+      continue;
+    }
+    result.push(log);
+  }
+  return result;
 }

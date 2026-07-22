@@ -51,36 +51,72 @@ function getDeepSeekClient(customKey?: string): OpenAI | null {
   });
 }
 
-// Usage tracking helper
+// Usage tracking helper with in-memory fallback
+const inMemoryUsage = new Map<string, { count: number; date: string }>();
+let isFirestoreAvailable = true;
+
+// Dynamic daily limit (default 50)
+let customDailyLimit = parseInt(process.env.AI_DAILY_LIMIT || "50", 10);
+
+// Admin limit management endpoints
+app.get("/api/admin/limit", (req, res) => {
+  res.json({ limit: customDailyLimit });
+});
+
+app.post("/api/admin/limit", (req, res) => {
+  const { limit } = req.body;
+  if (typeof limit === "number" && limit >= 1) {
+    customDailyLimit = Math.floor(limit);
+    return res.json({ success: true, limit: customDailyLimit });
+  }
+  return res.status(400).json({ error: "无效的限额数字" });
+});
+
 async function checkUsage(clientId: string): Promise<{ allowed: boolean; remaining: number }> {
-  if (!db) return { allowed: true, remaining: 999 };
-  
   const today = new Date().toISOString().split("T")[0];
   const usageId = `${clientId}_${today}`;
-  const usageRef = db.collection("ai_usage").doc(usageId);
-  
-  // You can adjust the daily limit here or via AI_DAILY_LIMIT env var
-  const DAILY_LIMIT = parseInt(process.env.AI_DAILY_LIMIT || "10", 10);
-  
-  try {
-    const doc = await usageRef.get();
-    const data = doc.data();
-    const count = data?.count || 0;
-    
-    if (count >= DAILY_LIMIT) {
-      return { allowed: false, remaining: 0 };
+  const DAILY_LIMIT = customDailyLimit;
+
+  if (db && isFirestoreAvailable) {
+    try {
+      const usageRef = db.collection("ai_usage").doc(usageId);
+      const doc = await usageRef.get();
+      const data = doc.data();
+      const count = data?.count || 0;
+
+      if (count >= DAILY_LIMIT) {
+        return { allowed: false, remaining: 0 };
+      }
+
+      await usageRef.set({
+        count: count + 1,
+        last_request: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return { allowed: true, remaining: DAILY_LIMIT - (count + 1) };
+    } catch (e: any) {
+      if (e?.code === 7 || (e?.message && (e.message.includes("PERMISSION_DENIED") || e.message.includes("not been used")))) {
+        console.warn("Firestore API not enabled or permitted. Falling back to in-memory usage tracking.");
+        isFirestoreAvailable = false;
+      } else {
+        console.warn("Firestore usage check warning:", e?.message || e);
+      }
     }
-    
-    await usageRef.set({
-      count: count + 1,
-      last_request: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    
-    return { allowed: true, remaining: DAILY_LIMIT - (count + 1) };
-  } catch (e) {
-    console.error("Usage check error:", e);
-    return { allowed: true, remaining: 1 }; // Default to allow on error
   }
+
+  // Fallback in-memory tracking
+  const mem = inMemoryUsage.get(clientId);
+  let count = 0;
+  if (mem && mem.date === today) {
+    count = mem.count;
+  }
+
+  if (count >= DAILY_LIMIT) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  inMemoryUsage.set(clientId, { count: count + 1, date: today });
+  return { allowed: true, remaining: DAILY_LIMIT - (count + 1) };
 }
 
 function isValidImageUrl(url: string): boolean {
@@ -124,10 +160,36 @@ function isValidImageUrl(url: string): boolean {
   return hasImageExtension || isImageHost;
 }
 
+// Helper to validate and sanitize AI parse output
+function sanitizeParseResult(resultText: string): { data?: any; error?: string } {
+  let json: any = {};
+  try {
+    json = JSON.parse(resultText);
+  } catch (e) {
+    return { error: "无法解析该网址或内容，请检查输入或手动填写。" };
+  }
+
+  if (json.error && typeof json.error === "string") {
+    return { error: json.error };
+  }
+
+  const title = json.title ? String(json.title).trim() : "";
+  const invalidTitles = ["unknown", "n/a", "null", "undefined", "未知", "无", "解析失败", "error", "none", "n/a title"];
+  if (!title || invalidTitles.includes(title.toLowerCase())) {
+    return { error: "无法解析该网址或内容，请检查链接或手动填写。" };
+  }
+
+  if (json.coverUrl && !isValidImageUrl(json.coverUrl)) {
+    json.coverUrl = "";
+  }
+
+  return { data: json };
+}
+
 // API: Parse Book/Movie/Anime/Music links or titles using Gemini + Search Grounding
 app.post("/api/parse-link", async (req, res) => {
   try {
-    const { url, userApiKey, provider, baseUrl, model, clientId } = req.body;
+    const { url, userApiKey, provider, baseUrl, model, clientId, isAdmin } = req.body;
     if (!url || typeof url !== "string") {
       return res.status(400).json({ error: "Please provide a valid URL or title." });
     }
@@ -135,12 +197,16 @@ app.post("/api/parse-link", async (req, res) => {
     // Usage check for shared key (public mode)
     let usageInfo = { allowed: true, remaining: 999 };
     if (!userApiKey) {
-      usageInfo = await checkUsage(clientId || req.ip || "anonymous");
-      if (!usageInfo.allowed) {
-        const limit = process.env.AI_DAILY_LIMIT || "10";
-        return res.status(429).json({ 
-          error: `今日 AI 解析次数已达上限（${limit}次）。请明日再试，或在设置中配置您自己的 API KEY。` 
-        });
+      if (isAdmin) {
+        // Admin mode gets unlimited parse usage
+        usageInfo = { allowed: true, remaining: 9999 };
+      } else {
+        usageInfo = await checkUsage(clientId || req.ip || "anonymous");
+        if (!usageInfo.allowed) {
+          return res.status(429).json({ 
+            error: `今日 AI 解析次数已达上限（${customDailyLimit}次）。管理员登录或在设置中配置个人 API KEY 可不受限制。` 
+          });
+        }
       }
     }
 
@@ -161,30 +227,25 @@ app.post("/api/parse-link", async (req, res) => {
       }
     }
     
-    const prompt = `You are a professional media cataloging assistant specializing in Chinese and International media.
+    const prompt = `You are a professional media cataloging assistant specializing in Chinese and International media (books, movies, TV shows, anime, music albums, video games).
 User Input: "${url}"
 
 Tasks:
 1. Identify the media item from the input. 
-2. If the input is a Douban Link (e.g., movie.douban.com/subject/1292052/), you MUST prioritize the information from that specific Douban entry.
-3. For all items, use your search capabilities to find:
-   - Official Title in Chinese (e.g., "肖申克的救赎")
-   - Creator (Author, Director, Studio, or Artist)
-   - Release Year
-   - A DIRECT STATIC IMAGE URL for the cover (e.g., ending in .jpg or .webp, from doubanio.com or media-amazon.com). 
-   - Genres/Tags
-   - A short description (1-2 sentences in Chinese)
-4. Return a strictly valid JSON object:
-   - title: (string) Official Chinese title
+2. If the input is a Douban Link (e.g., movie.douban.com/subject/1292052/), prioritize information from that specific Douban entry.
+3. If the input URL or text is invalid, random gibberish, an unparseable generic webpage, or CANNOT be matched to a real book, movie, TV show, anime, album, or game, you MUST return JSON:
+   { "error": "无法解析该网址或内容，请检查链接或手动输入" }
+4. If valid, return a JSON object:
+   - title: (string) Official Chinese title (e.g., "肖申克的救赎")
    - type: (one of: 'book', 'movie', 'tv', 'anime', 'music', 'game', 'other')
-   - creator: (string) Author/Director/etc
-   - coverUrl: (string) MUST be a direct image file link. If the found Douban cover URL has a suffix like 's' or 'm' (small), try to get the large 'l' version or original version.
-   - description: (string) Chinese summary
-   - tags: (array of strings)
+   - creator: (string) Author/Director/Studio/Artist
+   - coverUrl: (string) DIRECT static image URL ending in .jpg, .png, .webp. If none found, use empty string "".
+   - description: (string) Chinese summary (1-2 sentences)
+   - tags: (array of strings in Chinese)
    - rating: (number 0-10 or null)
    - releaseYear: (number or string or null)
 
-CRITICAL: Do NOT return gallery links, search page links, or HTML pages as coverUrl. Return ONLY direct image assets. Use Chinese for descriptions and titles.`;
+CRITICAL: Do NOT invent fake or placeholder titles if you are uncertain. Return { "error": "无法解析该网址或内容，请检查链接或手动输入" } instead.`;
 
     if (activeProvider === "gemini" && !baseUrl) {
       const ai = getGeminiClient(userApiKey);
@@ -202,11 +263,12 @@ CRITICAL: Do NOT return gallery links, search page links, or HTML pages as cover
       });
 
       const resultText = response.text?.trim() || "{}";
-      const resultJson = JSON.parse(resultText);
-      if (resultJson.coverUrl && !isValidImageUrl(resultJson.coverUrl)) {
-        resultJson.coverUrl = "";
+      const sanitized = sanitizeParseResult(resultText);
+      if (sanitized.error) {
+        return res.status(400).json({ error: sanitized.error });
       }
-      return res.json({ success: true, data: resultJson, remaining: usageInfo.remaining });
+
+      return res.json({ success: true, data: sanitized.data, remaining: usageInfo.remaining });
     } else {
       // OpenAI compatible (SiliconFlow, DeepSeek, Local LLM, etc.)
       let apiKey = userApiKey;
@@ -257,15 +319,16 @@ CRITICAL: Do NOT return gallery links, search page links, or HTML pages as cover
       });
 
       const resultText = response.choices[0].message.content || "{}";
-      const resultJson = JSON.parse(resultText);
-      if (resultJson.coverUrl && !isValidImageUrl(resultJson.coverUrl)) {
-        resultJson.coverUrl = "";
+      const sanitized = sanitizeParseResult(resultText);
+      if (sanitized.error) {
+        return res.status(400).json({ error: sanitized.error });
       }
-      return res.json({ success: true, data: resultJson, remaining: usageInfo.remaining });
+
+      return res.json({ success: true, data: sanitized.data, remaining: usageInfo.remaining });
     }
   } catch (error: any) {
     console.error("AI parse link error:", error);
-    res.status(500).json({ error: error.message || "Failed to parse link." });
+    res.status(500).json({ error: error.message || "无法解析该网址或内容，请检查链接或手动输入。" });
   }
 });
 

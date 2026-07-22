@@ -12,9 +12,10 @@ interface AISettings {
 interface AISettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
-export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
+export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettingsModalProps) {
   const [settings, setSettings] = useState<AISettings>(() => {
     const saved = localStorage.getItem('ai_settings');
     return saved ? JSON.parse(saved) : {
@@ -25,9 +26,51 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
     };
   });
 
+  const [currentLimit, setCurrentLimit] = useState<number>(50);
+  const [newLimitInput, setNewLimitInput] = useState<string>('50');
+  const [limitMsg, setLimitMsg] = useState<string>('');
+
   useEffect(() => {
     localStorage.setItem('ai_settings', JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/admin/limit')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data.limit === 'number') {
+            setCurrentLimit(data.limit);
+            setNewLimitInput(String(data.limit));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
+  const handleSaveLimit = async () => {
+    const num = parseInt(newLimitInput, 10);
+    if (isNaN(num) || num < 1) {
+      setLimitMsg('⚠️ 请输入有效的整无限额数字');
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: num }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentLimit(data.limit);
+        setLimitMsg('✅ 系统每日解析限额已成功更新为 ' + data.limit + ' 次！');
+      } else {
+        setLimitMsg('⚠️ ' + (data.error || '更新失败'));
+      }
+    } catch (err: any) {
+      setLimitMsg('⚠️ 无法连接到服务器');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -161,12 +204,60 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
               </motion.div>
             )}
 
+            {/* Admin Controls */}
+            {isAdmin && (
+              <div className="bg-amber-500/10 border border-amber-500/30 p-4 space-y-3 font-serif">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                    👑 管理员权限控制台
+                  </span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 border border-amber-500/30 font-mono">
+                    无限解析特权已生效
+                  </span>
+                </div>
+                
+                <p className="text-[10.5px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  管理员模式下使用公共模式进行解析不受任何次数限制。您可以在下方实时调整非管理员用户的公共模式每日解析限额。
+                </p>
+
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block font-bold">
+                    修改系统每日公共解析限额 (当前: {currentLimit} 次/天)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000"
+                      value={newLimitInput}
+                      onChange={(e) => setNewLimitInput(e.target.value)}
+                      className="w-24 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveLimit}
+                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold font-serif cursor-pointer transition-colors"
+                    >
+                      保存新限额
+                    </button>
+                  </div>
+                  {limitMsg && (
+                    <p className="text-[10px] font-serif text-amber-600 dark:text-amber-400 pt-1">
+                      {limitMsg}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 p-3 flex items-center gap-3">
               <Info size={16} className="text-amber-600 dark:text-amber-500 shrink-0" />
               <div className="text-[10px] text-amber-800 dark:text-amber-400 leading-relaxed font-serif">
-                {settings.useCustomKey 
+                {isAdmin 
+                  ? `您当前处于管理员模式，AI 解析完全无限制。公共用户的每日共享解析限额为 ${currentLimit} 次/天。`
+                  : settings.useCustomKey 
                   ? "配置自有 API 后将不再受公共模式的每日限额限制。"
-                  : "公共模式每日限额取决于服务器配置（当前默认为 10 次/天），建议配置自有 API 以获得更稳定的体验。"}
+                  : `公共模式每日限额为 ${currentLimit} 次/天，管理员模式或自有 API Key 可不受限制。`}
               </div>
             </div>
           </div>

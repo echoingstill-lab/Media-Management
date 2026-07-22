@@ -7,7 +7,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square } from 'lucide-react';
 import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS } from '../types';
-import { compressImage, generateSvgCover } from '../utils/helpers';
+import { compressImage, generateSvgCover, deduplicateLogs } from '../utils/helpers';
 
 interface MediaDetailModalProps {
   item: MediaItem;
@@ -35,11 +35,70 @@ export default function MediaDetailModal({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
 
-  // Re-read Log state
-  const [reReadDate, setReReadDate] = useState(new Date().toISOString().split('T')[0]);
-  const [reReadNote, setReReadNote] = useState('');
+  // Re-read Log edit state
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogDate, setEditLogDate] = useState<string>('');
+  const [editLogNote, setEditLogNote] = useState<string>('');
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFullTimeline, setShowFullTimeline] = useState(false);
+
+  // Auto-save state for Personal Note (noteText)
+  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const isInitialNoteMount = useRef(true);
+
+  React.useEffect(() => {
+    if (isInitialNoteMount.current) {
+      isInitialNoteMount.current = false;
+      return;
+    }
+    if (noteText === item.personalNote) return;
+
+    setNoteSaveStatus('saving');
+    const timer = setTimeout(() => {
+      onUpdateItem({
+        ...item,
+        personalNote: noteText,
+        updatedAt: new Date().toISOString(),
+      });
+      setNoteSaveStatus('saved');
+      setTimeout(() => setNoteSaveStatus('idle'), 2000);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [noteText]);
+
+  // Auto-save state for Re-read Logs editing
+  const [logSaveStatus, setLogSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  React.useEffect(() => {
+    if (!editingLogId) return;
+    const targetLog = (item.reReadLogs || []).find(l => l.id === editingLogId);
+    if (!targetLog) return;
+    if (targetLog.date === editLogDate && (targetLog.note || '') === editLogNote.trim()) return;
+
+    setLogSaveStatus('saving');
+    const timer = setTimeout(() => {
+      const updatedLogs = (item.reReadLogs || []).map(l =>
+        l.id === editingLogId ? { ...l, date: editLogDate, note: editLogNote.trim() || undefined } : l
+      );
+      onUpdateItem({
+        ...item,
+        reReadLogs: updatedLogs,
+        updatedAt: new Date().toISOString(),
+      });
+      setLogSaveStatus('saved');
+      setTimeout(() => setLogSaveStatus('idle'), 2000);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [editLogDate, editLogNote, editingLogId]);
+
+  const handleStartEditLog = (log: ReReadLog) => {
+    setEditingLogId(log.id);
+    setEditLogDate(log.date || new Date().toISOString().split('T')[0]);
+    setEditLogNote(log.note || item.personalNote || '');
+  };
 
   // Interactive binary rating helper (10 = Like, 1 = Dislike, 0 = Unrated)
   const handleBinaryRatingClick = (type: 'like' | 'dislike') => {
@@ -119,24 +178,6 @@ export default function MediaDetailModal({
     setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleAddReRead = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newLog = {
-      id: Math.random().toString(36).substr(2, 9),
-      date: reReadDate,
-      note: reReadNote.trim() || undefined,
-    } as ReReadLog;
-    
-    const updatedItem = {
-      ...item,
-      reReadCount: (item.reReadCount || 0) + 1,
-      reReadLogs: [newLog, ...(item.reReadLogs || [])]
-    };
-    
-    onUpdateItem(updatedItem);
-    setReReadNote('');
-  };
-
   const handleDeleteReRead = (id: string) => {
     if (window.confirm('确定要删除这条重温记录吗？')) {
       const updatedLogs = (item.reReadLogs || []).filter(l => l.id !== id);
@@ -201,14 +242,6 @@ export default function MediaDetailModal({
               <span>编辑信息</span>
             </button>
             <button
-              onClick={handleSaveNote}
-              disabled={isSavingNote}
-              className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/40 text-[#4A3B32] dark:text-[#DDDAC4] border border-[#dcd6cb] dark:border-[#2d3137] hover:bg-[#4A3B32] hover:text-[#FBF9F3] hover:border-[#4A3B32] dark:hover:bg-[#DDDAC4] dark:hover:text-[#111214] dark:hover:border-[#DDDAC4] text-xs font-bold uppercase tracking-widest rounded-none transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
-            >
-              {isSavingNote ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
-              <span>保存记录</span>
-            </button>
-            <button
               onClick={onClose}
               className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-none transition-all cursor-pointer"
             >
@@ -238,7 +271,7 @@ export default function MediaDetailModal({
 
             {/* Static Info Block */}
             <div className="space-y-4">
-              <div className="flex items-baseline justify-between gap-4 border-b border-zinc-150 dark:border-zinc-800 pb-2">
+              <div className="flex items-baseline justify-between gap-4 border-b border-[#dcd6cb] dark:border-zinc-800 pb-2">
                 <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-serif tracking-tight leading-tight">{item.title}</h3>
                 {item.createdAt && (
                   <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-sans whitespace-nowrap shrink-0">
@@ -297,13 +330,9 @@ export default function MediaDetailModal({
                           if (!item.wishlistMonth) {
                             updated.wishlistMonth = now.split('T')[0].substring(0, 7);
                           }
-                          delete updated.startDate;
-                          delete updated.completedDate;
                         } else {
                           delete updated.status;
                           delete updated.wishlistMonth;
-                          delete updated.startDate;
-                          delete updated.completedDate;
                         }
                         onUpdateItem(updated);
                       }}
@@ -332,13 +361,9 @@ export default function MediaDetailModal({
                           if (!item.startDate) {
                             updated.startDate = now.split('T')[0];
                           }
-                          delete updated.wishlistMonth;
-                          delete updated.completedDate;
                         } else {
                           delete updated.status;
                           delete updated.wishlistMonth;
-                          delete updated.startDate;
-                          delete updated.completedDate;
                         }
                         onUpdateItem(updated);
                       }}
@@ -358,21 +383,36 @@ export default function MediaDetailModal({
                       onClick={() => {
                         const newStatus = item.status === 'completed' ? undefined : 'completed';
                         const now = new Date().toISOString();
+                        const todayStr = now.split('T')[0];
                         const updated: MediaItem = {
                           ...item,
                           status: newStatus,
                           updatedAt: now,
                         };
                         if (newStatus === 'completed') {
-                          if (!item.completedDate) {
-                            updated.completedDate = now.split('T')[0];
+                          let newLogs = deduplicateLogs(item.reReadLogs || []);
+                          const targetDate = item.completedDate || todayStr;
+                          const noteToArchive = item.personalNote?.trim();
+
+                          if (noteToArchive) {
+                            if (!newLogs[0] || newLogs[0].note?.trim() !== noteToArchive) {
+                              newLogs = [
+                                { id: Math.random().toString(36).substring(2, 9), date: targetDate, note: noteToArchive },
+                                ...newLogs
+                              ];
+                            }
+                          } else if (item.completedDate && newLogs.length === 0) {
+                            newLogs = [
+                              { id: Math.random().toString(36).substring(2, 9), date: item.completedDate, note: '首次完成感悟' },
+                              ...newLogs
+                            ];
                           }
-                          delete updated.wishlistMonth;
-                        } else {
-                          delete updated.status;
-                          delete updated.wishlistMonth;
-                          delete updated.startDate;
-                          delete updated.completedDate;
+
+                          newLogs = deduplicateLogs(newLogs);
+
+                          updated.reReadLogs = newLogs;
+                          updated.reReadCount = newLogs.length > 0 ? newLogs.length : item.reReadCount;
+                          updated.completedDate = todayStr;
                         }
                         onUpdateItem(updated);
                       }}
@@ -389,31 +429,93 @@ export default function MediaDetailModal({
                   </div>
                 </div>
 
-                {(item.startDate || item.completedDate) && (
-                  <div className="grid grid-cols-2 gap-4 pt-1">
-                    {item.startDate && (
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">开启日期</span>
-                        <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.startDate}</span>
-                      </div>
-                    )}
-                    {item.completedDate && (
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">结案日期</span>
-                        <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.completedDate}</span>
-                      </div>
-                    )}
+                {/* Timeline Log Section */}
+                <div className="space-y-2 pt-3 border-t border-[#dcd6cb]/80 dark:border-zinc-800/80">
+                  <div 
+                    onClick={() => setShowFullTimeline(!showFullTimeline)} 
+                    className="flex items-center justify-between cursor-pointer group select-none"
+                  >
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block font-serif">时间轨迹 / TIMELINE LOG</span>
+                    <span className="text-[10px] text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200 flex items-center gap-0.5 font-serif transition-colors">
+                      {showFullTimeline ? '收起轨迹' : '完整轨迹'} 
+                      <ChevronDown size={11} className={`transition-transform duration-200 ${showFullTimeline ? 'rotate-180' : ''}`} />
+                    </span>
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* Recorded Date at the bottom of the Left Side List */}
-            <div className="pt-6 border-t border-[#dcd6cb]/60 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500 font-serif">
-              <span className="font-bold tracking-wider uppercase">录入于 / RECORDED</span>
-              <span className="font-sans">
-                {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
-              </span>
+                  {!showFullTimeline ? (
+                    /* Default Collapsed View: Only start and completed dates */
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                        <span className="text-zinc-400 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+                          开启时间
+                        </span>
+                        <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{item.startDate || '未记录'}</span>
+                      </div>
+                      <div className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                        <span className="text-zinc-400 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                          完成时间
+                        </span>
+                        <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{item.completedDate || '未完成'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Expanded View: Complete timeline */
+                    <div className="relative pl-3.5 border-l border-[#dcd6cb] dark:border-zinc-800 space-y-2.5 py-1 animate-fade-in">
+                      {item.createdAt && (
+                        <div className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 -ml-[17px] inline-block ring-2 ring-white dark:ring-zinc-950"></span>
+                            录入档案
+                          </span>
+                          <span className="font-mono text-[10px] text-zinc-400">{new Date(item.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      )}
+
+                      {item.wishlistMonth && (
+                        <div className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 -ml-[17px] inline-block ring-2 ring-white dark:ring-zinc-950"></span>
+                            计划想看
+                          </span>
+                          <span className="font-mono text-[10px] text-zinc-400">{item.wishlistMonth}</span>
+                        </div>
+                      )}
+
+                      {item.startDate && (
+                        <div className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 -ml-[17px] inline-block ring-2 ring-white dark:ring-zinc-950"></span>
+                            开启进行
+                          </span>
+                          <span className="font-mono text-[10px] text-zinc-400">{item.startDate}</span>
+                        </div>
+                      )}
+
+                      {item.completedDate && (
+                        <div className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 -ml-[17px] inline-block ring-2 ring-white dark:ring-zinc-950"></span>
+                            完成记录
+                          </span>
+                          <span className="font-mono text-[10px] text-zinc-400">{item.completedDate}</span>
+                        </div>
+                      )}
+
+                      {item.reReadLogs && item.reReadLogs.length > 0 && item.reReadLogs.map((log, idx) => (
+                        <div key={log.id || idx} className="text-[11px] flex items-center justify-between text-zinc-600 dark:text-zinc-400 font-serif">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-600 -ml-[17px] inline-block ring-2 ring-white dark:ring-zinc-950"></span>
+                            重温 #{item.reReadLogs!.length - idx}
+                          </span>
+                          <span className="font-mono text-[10px] text-zinc-400">{log.date}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -478,28 +580,54 @@ export default function MediaDetailModal({
 
             {/* Interactive Tabs */}
             <div className="flex flex-col space-y-4 flex-grow">
-              <div className="flex border-b border-[#dcd6cb] dark:border-[#2d3137]">
-                <button
-                  onClick={() => setActiveTab('note')}
-                  className={`py-2 px-6 text-[12px] font-bold border-b-2 transition-all cursor-pointer rounded-none uppercase tracking-widest font-serif ${
-                    activeTab === 'note'
-                      ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
-                      : 'border-transparent text-zinc-400 hover:text-zinc-700'
-                  }`}
-                >
-                  个人感悟 / NOTES
-                </button>
-                <button
-                  onClick={() => setActiveTab('reread')}
-                  className={`py-2 px-6 text-[12px] font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer rounded-none uppercase tracking-widest font-serif ${
-                    activeTab === 'reread'
-                      ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
-                      : 'border-transparent text-zinc-400 hover:text-zinc-700'
-                  }`}
-                >
-                  <History size={12} />
-                  <span>重温记录 ({item.reReadCount})</span>
-                </button>
+              <div className="flex items-center justify-between border-b border-[#dcd6cb] dark:border-[#2d3137]">
+                <div className="flex">
+                  <button
+                    onClick={() => setActiveTab('note')}
+                    className={`py-2 px-6 text-[12px] font-bold border-b-2 transition-all cursor-pointer rounded-none uppercase tracking-widest font-serif ${
+                      activeTab === 'note'
+                        ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
+                        : 'border-transparent text-zinc-400 hover:text-zinc-700'
+                    }`}
+                  >
+                    个人感悟 / NOTES
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('reread')}
+                    className={`py-2 px-6 text-[12px] font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer rounded-none uppercase tracking-widest font-serif ${
+                      activeTab === 'reread'
+                        ? 'border-[#4A3B32] dark:border-[#e3e4e6] text-[#4A3B32] dark:text-[#e3e4e6]'
+                        : 'border-transparent text-zinc-400 hover:text-zinc-700'
+                    }`}
+                  >
+                    <History size={12} />
+                    <span>重温记录 ({item.reReadCount})</span>
+                  </button>
+                </div>
+
+                {/* Real-time Auto-save Indicator */}
+                <div className="pb-1 pr-2 flex items-center">
+                  {activeTab === 'note' && noteSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-[11px] font-mono animate-pulse">
+                      <Loader2 size={12} className="animate-spin" /> 自动保存中...
+                    </span>
+                  )}
+                  {activeTab === 'note' && noteSaveStatus === 'saved' && (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[11px] font-mono">
+                      <Check size={12} /> 已自动保存
+                    </span>
+                  )}
+                  {activeTab === 'reread' && logSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 text-[11px] font-mono animate-pulse">
+                      <Loader2 size={12} className="animate-spin" /> 自动保存中...
+                    </span>
+                  )}
+                  {activeTab === 'reread' && logSaveStatus === 'saved' && (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[11px] font-mono">
+                      <Check size={12} /> 已自动保存
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex-grow min-h-[300px]">
@@ -563,63 +691,100 @@ export default function MediaDetailModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-6 animate-fade-in">
-                    {/* Add Re-read Form */}
-                    <div className="p-5 bg-zinc-50 dark:bg-[#111214] border border-[#dcd6cb] dark:border-zinc-800 space-y-4">
-                      <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">新增重温记录</div>
-                      <form onSubmit={handleAddReRead} className="space-y-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温日期</label>
-                          <input 
-                            type="date" 
-                            value={reReadDate}
-                            onChange={(e) => setReReadDate(e.target.value)}
-                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 outline-none focus:border-zinc-400 font-serif"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-serif">重温心得</label>
-                          <textarea 
-                            placeholder="这次有什么不同的感悟吗？"
-                            value={reReadNote}
-                            onChange={(e) => setReReadNote(e.target.value)}
-                            className="w-full text-xs p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 min-h-[80px] focus:outline-none focus:border-zinc-400 resize-none font-serif"
-                          />
-                        </div>
-                        <button 
-                          type="submit"
-                          className="w-full py-2.5 bg-[#4A3B32] dark:bg-[#DDDAC4] text-white dark:text-[#111214] text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-90 transition-opacity"
-                        >
-                          确认添加 / ADD LOG
-                        </button>
-                      </form>
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="p-3 bg-purple-50/50 dark:bg-purple-950/10 border border-purple-200/50 dark:border-purple-900/30 text-purple-800 dark:text-purple-300 text-[11px] font-serif flex items-center gap-2">
+                      <Sparkles size={13} className="shrink-0 text-purple-600 dark:text-purple-400" />
+                      <span>重温记录由清单中“再次完成”或“重温”时自动生成。修改感悟或日期将自动为您保存。</span>
                     </div>
 
                     {/* Records List */}
                     <div className="space-y-3">
                       {item.reReadLogs && item.reReadLogs.length > 0 ? (
                         item.reReadLogs.map((log, idx) => (
-                          <div key={log.id || idx} className="p-4 border border-[#dcd6cb] dark:border-zinc-800 bg-white dark:bg-[#15171a] space-y-2 group">
-                             <div className="flex items-center justify-between border-b border-zinc-50 dark:border-zinc-900 pb-2 mb-2">
-                                <div className="flex items-center gap-3">
-                                   <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 font-mono">#{item.reReadLogs.length - idx}</span>
-                                   <div className="flex items-center gap-1 text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                                     <Calendar size={11} className="text-zinc-400" />
-                                     <span>{log.date}</span>
-                                   </div>
+                          <div key={log.id || idx} className="p-4 border border-[#dcd6cb] dark:border-zinc-800 bg-white dark:bg-[#15171a] space-y-3 group">
+                            {editingLogId === log.id ? (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 font-mono">修改重温记录 #{item.reReadLogs.length - idx}</span>
+                                  <div className="flex items-center gap-2">
+                                    {logSaveStatus === 'saving' && (
+                                      <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 text-[10px] font-mono">
+                                        <Loader2 size={10} className="animate-spin" /> 自动保存中...
+                                      </span>
+                                    )}
+                                    {logSaveStatus === 'saved' && (
+                                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono">
+                                        <Check size={10} /> 已自动保存
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingLogId(null)}
+                                      className="text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer font-serif underline ml-2"
+                                    >
+                                      完成
+                                    </button>
+                                  </div>
                                 </div>
-                                <button 
-                                  onClick={() => handleDeleteReRead(log.id)}
-                                  className="p-1.5 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                             </div>
-                             {log.note && (
-                               <p className="text-[12px] text-zinc-600 dark:text-zinc-400 italic leading-relaxed font-serif border-l-2 border-zinc-100 dark:border-zinc-800 pl-3">
-                                 "{log.note}"
-                               </p>
-                             )}
+                                <div className="space-y-2">
+                                  <div>
+                                    <label className="text-[10px] text-zinc-400 font-serif block mb-1">重温日期</label>
+                                    <input
+                                      type="date"
+                                      value={editLogDate}
+                                      onChange={(e) => setEditLogDate(e.target.value)}
+                                      className="w-full text-xs p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 outline-none font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-zinc-400 font-serif block mb-1 font-bold">重温心得 / 感悟</label>
+                                    <textarea
+                                      value={editLogNote}
+                                      onChange={(e) => setEditLogNote(e.target.value)}
+                                      placeholder="输入感悟或备注..."
+                                      className="w-full text-xs p-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 outline-none resize-none min-h-[70px] font-serif leading-relaxed"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 font-mono">#{item.reReadLogs.length - idx}</span>
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-800 dark:text-zinc-200 font-mono">
+                                      <Calendar size={11} className="text-zinc-400" />
+                                      <span>{log.date}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => handleStartEditLog(log)}
+                                      className="p-1.5 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer"
+                                      title="修改记录"
+                                    >
+                                      <Edit2 size={12} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteReRead(log.id)}
+                                      className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
+                                      title="删除记录"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                                {log.note || item.personalNote ? (
+                                  <p className="text-[12px] text-zinc-600 dark:text-zinc-400 italic leading-relaxed font-serif border-l-2 border-purple-500/30 pl-3">
+                                    "{log.note || item.personalNote}"
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] text-zinc-400 dark:text-zinc-600 italic font-serif">
+                                    暂无心得备注
+                                  </p>
+                                )}
+                              </>
+                            )}
                           </div>
                         ))
                       ) : (

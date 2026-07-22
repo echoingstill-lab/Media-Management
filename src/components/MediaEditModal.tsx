@@ -148,6 +148,7 @@ export default function MediaEditModal({
       const aiSettingsRaw = localStorage.getItem('ai_settings');
       const aiSettings = aiSettingsRaw ? JSON.parse(aiSettingsRaw) : null;
       const clientId = localStorage.getItem('media_archive_client_id');
+      const isAdmin = localStorage.getItem('media_management_is_admin') === 'true';
 
       const res = await fetch('/api/parse-link', {
         method: 'POST',
@@ -158,13 +159,14 @@ export default function MediaEditModal({
           provider: aiSettings?.useCustomKey ? aiSettings.provider : undefined,
           baseUrl: aiSettings?.useCustomKey ? aiSettings.baseUrl : undefined,
           model: aiSettings?.useCustomKey ? aiSettings.model : undefined,
-          clientId: clientId
+          clientId: clientId,
+          isAdmin: isAdmin
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || '解析失败，请直接输入名称录入。');
+      if (!res.ok || !data.success || !data.data) {
+        throw new Error(data.error || '无法解析该网址或内容，请检查链接或手动输入。');
       }
 
       const media = data.data;

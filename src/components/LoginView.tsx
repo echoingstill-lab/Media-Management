@@ -7,12 +7,12 @@ import React, { useState } from 'react';
 import { Shield, Key, User, ArrowRight, BookOpen, Sparkles, SquareCheck } from 'lucide-react';
 
 interface LoginViewProps {
-  onLogin: (username: string) => void;
+  onLogin: (username: string, isAdmin?: boolean) => void;
   darkMode: boolean;
 }
 
 export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
-  const [isRegister, setIsRegister] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register' | 'admin'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,7 +44,21 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
     const users = getStoredUsers();
     const normalizedUser = username.trim().toLowerCase();
 
-    if (isRegister) {
+    if (mode === 'admin') {
+      // Admin login validation
+      const storedPass = users[normalizedUser] || 'admin123';
+      if (password !== storedPass && password !== 'admin123') {
+        setError('管理员密码错误 (默认账号: admin 密码: admin123)');
+        return;
+      }
+      setSuccessMsg('管理员验证成功！正在以管理员特权身份登录...');
+      setTimeout(() => {
+        onLogin(username.trim(), true);
+      }, 500);
+      return;
+    }
+
+    if (mode === 'register') {
       if (password !== confirmPassword) {
         setError('两次输入的密码不一致');
         return;
@@ -56,20 +70,29 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
       saveUser(username.trim(), password);
       setSuccessMsg('注册成功！正在自动登录...');
       setTimeout(() => {
-        onLogin(username.trim());
-      }, 1000);
+        onLogin(username.trim(), false);
+      }, 800);
     } else {
       const storedPass = users[normalizedUser];
       if (!storedPass || storedPass !== password) {
         setError('用户名或密码错误 (默认账号: admin 密码: admin123)');
         return;
       }
-      onLogin(username.trim());
+      const isAdminUser = normalizedUser === 'admin';
+      onLogin(username.trim(), isAdminUser);
     }
   };
 
+  const handleQuickAdminLogin = () => {
+    setError('');
+    setSuccessMsg('以管理员身份登录成功！');
+    setTimeout(() => {
+      onLogin('admin', true);
+    }, 400);
+  };
+
   const handleGuestLogin = () => {
-    onLogin('Guest');
+    onLogin('Guest', false);
   };
 
   return (
@@ -116,9 +139,9 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           <div className="flex border-b border-[#d3cbbe] dark:border-[#2e3238]">
             <button
               type="button"
-              onClick={() => { setIsRegister(false); setError(''); }}
+              onClick={() => { setMode('login'); setError(''); }}
               className={`flex-1 pb-3 text-xs tracking-wider font-bold transition-all border-b-2 rounded-none font-serif ${
-                !isRegister 
+                mode === 'login' 
                   ? 'border-[#4A3B32] dark:border-zinc-100 text-[#2B1E19] dark:text-[#e3e4e6] opacity-100' 
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-[#e3e4e6] opacity-65'
               }`}
@@ -127,16 +150,43 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             </button>
             <button
               type="button"
-              onClick={() => { setIsRegister(true); setError(''); }}
+              onClick={() => { setMode('register'); setError(''); }}
               className={`flex-1 pb-3 text-xs tracking-wider font-bold transition-all border-b-2 rounded-none font-serif ${
-                isRegister 
+                mode === 'register' 
                   ? 'border-[#4A3B32] dark:border-zinc-100 text-[#2B1E19] dark:text-[#e3e4e6] opacity-100' 
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-[#e3e4e6] opacity-65'
               }`}
             >
               注册新档案
             </button>
+            <button
+              type="button"
+              onClick={() => { 
+                setMode('admin'); 
+                setError(''); 
+                if (!username) setUsername('admin');
+                if (!password) setPassword('admin123');
+              }}
+              className={`flex-1 pb-3 text-xs tracking-wider font-bold transition-all border-b-2 rounded-none font-serif flex items-center justify-center gap-1 ${
+                mode === 'admin' 
+                  ? 'border-amber-500 text-amber-600 dark:text-amber-400 opacity-100' 
+                  : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-amber-500 opacity-65'
+              }`}
+            >
+              <span>👑 管理员模式</span>
+            </button>
           </div>
+
+          {mode === 'admin' && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-serif leading-relaxed space-y-1">
+              <div className="font-bold flex items-center gap-1">
+                <span>👑 管理员模式特权激活说明</span>
+              </div>
+              <p className="opacity-90">
+                以管理员模式登录后，可享用无限额 AI 智能文本与链接解析，并可在设置面板中动态修改全局每日解析限额。
+              </p>
+            </div>
+          )}
 
           {/* Feedback messages */}
           {error && (
@@ -158,7 +208,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             {/* Username */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-serif tracking-wider opacity-60 block">
-                档案用户名
+                {mode === 'admin' ? '管理员账号' : '档案用户名'}
               </label>
               <div className="relative">
                 <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
@@ -167,7 +217,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="请输入用户名..."
+                  placeholder={mode === 'admin' ? "默认管理员账号: admin" : "请输入用户名..."}
                   className={`w-full text-xs pl-9 pr-4 py-3 rounded-none border focus:outline-none transition-all ${
                     darkMode 
                       ? 'bg-[#15171a] border-[#2e3238] focus:border-zinc-600 text-[#e3e4e6]' 
@@ -180,7 +230,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             {/* Password */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-serif tracking-wider opacity-60 block">
-                账户密码
+                {mode === 'admin' ? '管理员密码' : '账户密码'}
               </label>
               <div className="relative">
                 <Key size={13} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
@@ -189,7 +239,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="请输入密码..."
+                  placeholder={mode === 'admin' ? "默认密码: admin123" : "请输入密码..."}
                   className={`w-full text-xs pl-9 pr-4 py-3 rounded-none border focus:outline-none transition-all ${
                     darkMode 
                       ? 'bg-[#15171a] border-[#2e3238] focus:border-zinc-600 text-[#e3e4e6]' 
@@ -200,7 +250,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             </div>
 
             {/* Confirm Password (only on Register) */}
-            {isRegister && (
+            {mode === 'register' && (
               <div className="space-y-1.5 animate-fade-in">
                 <label className="text-[10px] font-serif tracking-wider opacity-60 block">
                   确认密码
@@ -228,18 +278,28 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           <button
             type="submit"
             className={`w-full py-3 text-xs tracking-widest font-bold transition-all duration-200 flex items-center justify-center gap-2 rounded-none cursor-pointer font-serif ${
-              darkMode 
+              mode === 'admin'
+                ? 'bg-amber-600 text-white hover:bg-amber-700'
+                : darkMode 
                 ? 'bg-zinc-100 text-zinc-950 hover:bg-white' 
                 : 'bg-[#4A3B32] text-white hover:bg-[#382B24]'
             }`}
           >
-            <span>{isRegister ? '确认注册并加入' : '立即登录系统'}</span>
+            <span>{mode === 'admin' ? '以管理员身份登录' : mode === 'register' ? '确认注册并加入' : '立即登录系统'}</span>
             <ArrowRight size={13} strokeWidth={2.5} />
           </button>
         </form>
 
-        {/* Divider and Guest access */}
-        <div className="space-y-4 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10">
+        {/* Divider and Quick Admin access */}
+        <div className="space-y-3 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10">
+
+          <button
+            type="button"
+            onClick={handleQuickAdminLogin}
+            className="w-full py-2.5 text-xs font-bold tracking-wider border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all rounded-none cursor-pointer flex items-center justify-center gap-1.5 font-serif"
+          >
+            <span>⚡ 管理员模式极速入口 (随意使用解析/修改限额)</span>
+          </button>
 
           <button
             type="button"

@@ -114,7 +114,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           
           <div className="space-y-1">
             <h1 className="text-2.5xl md:text-3xl font-bold tracking-tight font-serif">
-              Media Management
+              媒体管理
             </h1>
             <p className="text-xs font-serif opacity-50 tracking-wider">
               个人数字媒体馆：书籍、影视与音乐的私藏归档。

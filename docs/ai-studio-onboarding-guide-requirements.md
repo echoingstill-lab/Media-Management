@@ -2,7 +2,7 @@
 
 ## Background
 
-Media Management / 悦读日记 is a personal media archive and habit tracking app. The app already has several core areas: login/guest entry, monthly wishlist, media archive, collection groups, check-in calendar, data backup/import, tag management, AI parsing settings, and media entry/editing.
+媒体管理 (Media Management) is a personal media archive and habit tracking app. The app already has several core areas: login/guest entry, monthly wishlist, media archive, collection groups, check-in calendar, data backup/import, tag management, AI parsing settings, and media entry/editing.
 
 The next task is to add an animated user guide that helps first-time users understand the product quickly without turning the home screen into a landing page.
 
@@ -72,7 +72,7 @@ Requirements:
 
 Target: header title area.
 
-Title: `欢迎来到悦读日记`
+Title: `欢迎来到媒体管理`
 
 Copy: `这里可以统一管理你的书、电影、剧集、动漫、音乐和游戏，并记录每月计划与完成进度。`
 
@@ -172,7 +172,7 @@ Animation: calendar day pulses once, then export icon appears.
 const GUIDE_STEPS = [
   {
     id: 'welcome',
-    title: '欢迎来到悦读日记',
+    title: '欢迎来到媒体管理',
     body: '...',
     target: '[data-guide="app-header"]',
   },
@@ -234,4 +234,3 @@ Add `data-guide` attributes to:
 ## Notes For AI Studio
 
 This should be implemented as an in-app product guide, not a separate README page. The user should be able to understand the app by watching the guide and then immediately continue using the same screen.
-

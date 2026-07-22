@@ -563,9 +563,9 @@ export default function App() {
           <div className="flex items-center gap-1">
             <div>
               <h1 className="text-4xl md:text-5xl font-serif font-bold text-[#4A3B32] dark:text-[#DDDAC4] tracking-tight flex items-baseline gap-3">
-                <span>Media Management</span>
+                <span>媒体管理</span>
                 <span className="text-3xl md:text-4xl opacity-40 font-serif font-normal text-zinc-400">/</span>
-                <span className="text-xl md:text-2xl opacity-90 font-serif tracking-widest">媒体管理</span>
+                <span className="text-xl md:text-2xl opacity-90 font-serif tracking-widest">Media Management</span>
               </h1>
               <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-3 font-serif">
                 阅读是一座随身携带的避难所

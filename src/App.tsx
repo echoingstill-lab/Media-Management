@@ -1331,6 +1331,7 @@ export default function App() {
               onReset={handleResetToDefault}
               onBulkAddItems={handleBulkAddItems}
               darkMode={darkMode}
+              isAdmin={isAdmin}
             />
           </div>
         )}

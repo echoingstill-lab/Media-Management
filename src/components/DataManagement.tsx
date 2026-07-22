@@ -21,6 +21,7 @@ interface DataManagementProps {
   onReset: () => void;
   onBulkAddItems: (items: MediaItem[]) => void;
   darkMode: boolean;
+  isAdmin?: boolean;
 }
 
 interface ParsedImportRow {
@@ -45,6 +46,7 @@ export default function DataManagement({
   onReset,
   onBulkAddItems,
   darkMode,
+  isAdmin = false,
 }: DataManagementProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({
@@ -429,7 +431,7 @@ export default function DataManagement({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
           
           {/* Export Card */}
           <button
@@ -474,23 +476,24 @@ export default function DataManagement({
             />
           </button>
 
-          {/* Reset Card */}
-          <button
-            onClick={handleResetToDefault}
-            className={`group flex flex-col items-center justify-center p-6 border transition-all text-center rounded-none cursor-pointer ${
-              darkMode 
-                ? 'bg-zinc-950/10 hover:bg-zinc-900/20 border-zinc-850 hover:border-red-900/20 text-zinc-500' 
-                : 'bg-zinc-100/50 hover:bg-red-500/5 border-zinc-200 hover:border-red-200 text-zinc-600'
-            }`}
-          >
-            <div className="p-2.5 border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 group-hover:scale-105 transition-transform duration-250">
-              <RefreshCw size={18} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300 mt-3">重置示例档案</span>
-            <span className="text-[10px] text-zinc-400 mt-1 max-w-[220px] leading-relaxed">
-              清空当前已编辑数据，重新导入极简预设的书影音档案进行体验
-            </span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={handleResetToDefault}
+              className={`group flex flex-col items-center justify-center p-6 border transition-all text-center rounded-none cursor-pointer ${
+                darkMode
+                  ? 'bg-zinc-950/10 hover:bg-zinc-900/20 border-zinc-850 hover:border-red-900/20 text-zinc-500'
+                  : 'bg-zinc-100/50 hover:bg-red-500/5 border-zinc-200 hover:border-red-200 text-zinc-600'
+              }`}
+            >
+              <div className="p-2.5 border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 group-hover:scale-105 transition-transform duration-250">
+                <RefreshCw size={18} />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300 mt-3">重置示例档案</span>
+              <span className="text-[10px] text-zinc-400 mt-1 max-w-[220px] leading-relaxed">
+                清空当前已编辑数据，重新导入极简预设的书影音档案进行体验
+              </span>
+            </button>
+          )}
         </div>
 
         {status.type !== 'idle' && (

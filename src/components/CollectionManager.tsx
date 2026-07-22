@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Collection, MediaItem } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import FeatureGuideBanner from './FeatureGuideBanner';
 
 interface CollectionManagerProps {
   collections: Collection[];
@@ -274,7 +275,15 @@ export default function CollectionManager({
     : mediaItems.filter(item => item.collections.includes(selectedCollectionId));
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-[700px] border border-[#E6E0D5] dark:border-[#2D3137] bg-white dark:bg-[#191b1e] overflow-hidden">
+    <div data-guide="collections" className="space-y-4">
+      <FeatureGuideBanner
+        guideKey="collections_nested_guide"
+        title="无限层级合集与主题分组"
+        badge="分组典藏"
+        description="支持建立树状父子合集（例如：父合集“2026年度书单” → 子合集“哲学思辨”）。您可以将散落在图书、影视、音乐与游戏中的不同作品归入同一个主题，形成专属于您的知识与文化策展。"
+      />
+
+      <div className="flex flex-col md:flex-row h-full min-h-[700px] border border-[#E6E0D5] dark:border-[#2D3137] bg-white dark:bg-[#191b1e] overflow-hidden">
       
       {/* Sidebar */}
       <div className="w-full md:w-64 border-r border-[#E6E0D5] dark:border-[#2D3137] flex flex-col bg-[#FAF8F5]/30 dark:bg-zinc-950/20">
@@ -703,7 +712,7 @@ export default function CollectionManager({
           </div>
         )}
       </AnimatePresence>
-
     </div>
-  );
+  </div>
+);
 }

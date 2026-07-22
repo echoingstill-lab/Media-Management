@@ -8,6 +8,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, SquareCheck, Troph
 import { CheckInHabit, CheckInLog, MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { calculateStreak } from '../utils/helpers';
 import { motion, AnimatePresence } from 'motion/react';
+import FeatureGuideBanner from './FeatureGuideBanner';
 
 interface CheckInCalendarProps {
   habits: CheckInHabit[];
@@ -110,7 +111,13 @@ export default function CheckInCalendar({
   const overallStreak = calculateStreak(checkInLogs);
 
   return (
-    <div className="space-y-6 font-serif">
+    <div data-guide="check-in-calendar" className="space-y-6 font-serif">
+      <FeatureGuideBanner
+        guideKey="checkin_calendar_hover_guide"
+        title="打卡历程与日历悬停预览"
+        badge="实时交互"
+        description="系统会自动统计您的连续打卡天数。将鼠标悬停在日历中的任一日期格子上，即可实时浮窗预览当天完成的具体打卡项目与历史随记感悟。"
+      />
       
       {/* Main Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">

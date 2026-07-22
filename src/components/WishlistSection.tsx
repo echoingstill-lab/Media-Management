@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { deduplicateLogs } from '../utils/helpers';
+import FeatureGuideBanner from './FeatureGuideBanner';
 
 interface WishlistSectionProps {
   mediaItems: MediaItem[];
@@ -1053,7 +1054,13 @@ export default function WishlistSection({
   };
 
   return (
-    <div className="space-y-6">
+    <div data-guide="monthly-wishlist" className="space-y-6">
+      <FeatureGuideBanner
+        guideKey="monthly_wishlist_guide"
+        title="月度清单与一键跨月顺延"
+        badge="特色规划"
+        description="将本月想读、想看、想听或想玩的项目按分类列入清单。月底尚未完成的项目，支持一键顺延移至下月；完成项目勾选后可自动打卡并存入档案库。"
+      />
 
       {/* 1. CURRENT MONTH TARGETS (PINNED) */}
       {renderMonthBoard(currentMonthStr, 'current')}

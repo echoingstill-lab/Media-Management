@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users, MapPin, Settings } from 'lucide-react';
 import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
 import { generateSvgCover, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
+import FeatureGuideBanner from './FeatureGuideBanner';
 
 interface MediaEditModalProps {
   item?: MediaItem; // If present, we are editing; if absent, creating
@@ -287,7 +288,14 @@ export default function MediaEditModal({
         <div className="overflow-y-auto p-6 space-y-6 flex-grow bg-white dark:bg-[#191B1E]">
           
           {/* AI Link/Search Bar (Highly prominent when creating or editing a record) */}
-          <div className="p-4 rounded-none bg-white/55 dark:bg-zinc-950/50 border border-[#dcd6cb] dark:border-[#2D3137] space-y-2.5">
+          <FeatureGuideBanner
+            guideKey="ai_parse_guide"
+            title="链接解析与元数据自动补全"
+            badge="智能填单"
+            description="粘贴豆瓣、IMDb、Steam、Apple Music 或网易云平台的作品链接，点击“解析填充”即可自动提取封面、作品原名、主创团队与简介。"
+          />
+
+          <div data-guide="parse-media" className="p-4 rounded-none bg-white/55 dark:bg-zinc-950/50 border border-[#dcd6cb] dark:border-[#2D3137] space-y-2.5">
               <div className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                 <Sparkles size={14} className="text-amber-500 dark:text-amber-400 animate-pulse" />
                 <span>输入链接或标题解析</span>
@@ -711,6 +719,13 @@ export default function MediaEditModal({
                       />
                     </div>
                   </div>
+
+                  <FeatureGuideBanner
+                    guideKey="joint_logging_guide"
+                    title="同行印记与共同体会"
+                    badge="一同记录"
+                    description="记录与谁一起观看/阅读、经历地点与共同感悟，将影视书音记忆转化为珍贵的双人/群体陪伴记忆。"
+                  />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>

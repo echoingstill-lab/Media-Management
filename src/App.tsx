@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder, Tag, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder, Tag, ChevronDown, ChevronUp, Settings, HelpCircle } from 'lucide-react';
 import { MediaItem, Collection, CheckInHabit, CheckInLog, MediaType, MEDIA_TYPE_LABELS, TagDefinition } from './types';
 import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS, DEFAULT_TAG_DEFINITIONS, deduplicateLogs } from './utils/helpers';
 
@@ -20,27 +20,48 @@ import WishlistSection from './components/WishlistSection';
 import LoginView from './components/LoginView';
 import AISettingsModal from './components/AISettingsModal';
 import TagManagerModal from './components/TagManagerModal';
+import UserGuideModal from './components/UserGuideModal';
+import AccountSettingsModal from './components/AccountSettingsModal';
 
 export default function App() {
+  // Helper for user-scoped storage key
+  const getStorageKey = (keyType: 'items' | 'collections' | 'logs' | 'tags', username: string | null, isAdminUser: boolean) => {
+    if (!username) return `media_archive_${keyType}_guest`;
+    const normalized = username.trim().toLowerCase();
+    if (isAdminUser || normalized === 'echoingstill' || normalized === 'admin') {
+      return `media_archive_${keyType}_admin`;
+    }
+    return `media_archive_${keyType}_user_${normalized}`;
+  };
+
   // --- Authentication State ---
+  const initialUser = localStorage.getItem('media_management_user');
+  const initialAdmin = localStorage.getItem('media_management_is_admin') === 'true' || (initialUser?.toLowerCase() === 'echoingstill') || (initialUser?.toLowerCase() === 'admin');
+
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    return localStorage.getItem('media_management_user');
+    if (initialUser === 'Guest') {
+      localStorage.removeItem('media_management_user');
+      return null;
+    }
+    return initialUser;
   });
 
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    return localStorage.getItem('media_management_is_admin') === 'true';
+    return initialAdmin;
   });
 
   const handleLogin = (username: string, adminStatus = false) => {
+    const isAdm = adminStatus || username.toLowerCase() === 'echoingstill' || username.toLowerCase() === 'admin';
     setCurrentUser(username);
     localStorage.setItem('media_management_user', username);
-    if (adminStatus || username.toLowerCase() === 'admin') {
+    if (isAdm) {
       setIsAdmin(true);
       localStorage.setItem('media_management_is_admin', 'true');
     } else {
       setIsAdmin(false);
       localStorage.removeItem('media_management_is_admin');
     }
+    window.dispatchEvent(new Event('media_archive_guides_reset'));
   };
 
   const handleLogout = () => {
@@ -48,35 +69,37 @@ export default function App() {
     setIsAdmin(false);
     localStorage.removeItem('media_management_user');
     localStorage.removeItem('media_management_is_admin');
+    window.dispatchEvent(new Event('media_archive_guides_reset'));
   };
 
   // --- Persistent LocalState ---
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
-    const saved = localStorage.getItem('media_archive_items');
-    return saved ? JSON.parse(saved) : DEFAULT_MEDIA_ITEMS;
+    if (!initialUser || initialUser === 'Guest') return [];
+    if (initialAdmin) {
+      const saved = localStorage.getItem('media_archive_items_admin') || localStorage.getItem('media_archive_items');
+      return saved ? JSON.parse(saved) : DEFAULT_MEDIA_ITEMS;
+    } else {
+      const userKey = `media_archive_items_user_${initialUser.toLowerCase()}`;
+      const saved = localStorage.getItem(userKey);
+      return saved ? JSON.parse(saved) : [];
+    }
   });
 
-  // Track the sorting order stable across renders; only updates when switching tabs, or when items are added/deleted/imported.
+  // Track the sorting order stable across renders
   const [sortedMediaIds, setSortedMediaIds] = useState<string[]>(() => {
-    const initialItems = localStorage.getItem('media_archive_items')
-      ? JSON.parse(localStorage.getItem('media_archive_items')!)
-      : DEFAULT_MEDIA_ITEMS;
-    const sorted = [...initialItems].sort((a, b) => {
-      const getWeight = (status: string | undefined) => {
-        if (status === 'progress') return 1;
-        if (status === 'wishlist') return 2;
-        if (!status) return 3;
-        if (status === 'completed') return 4;
-        return 5;
-      };
-      return getWeight(a.status) - getWeight(b.status);
-    });
-    return sorted.map(itm => itm.id);
+    return mediaItems.map(itm => itm.id);
   });
 
   const [collections, setCollections] = useState<Collection[]>(() => {
-    const saved = localStorage.getItem('media_archive_collections');
-    return saved ? JSON.parse(saved) : DEFAULT_COLLECTIONS;
+    if (!initialUser || initialUser === 'Guest') return [];
+    if (initialAdmin) {
+      const saved = localStorage.getItem('media_archive_collections_admin') || localStorage.getItem('media_archive_collections');
+      return saved ? JSON.parse(saved) : DEFAULT_COLLECTIONS;
+    } else {
+      const userKey = `media_archive_collections_user_${initialUser.toLowerCase()}`;
+      const saved = localStorage.getItem(userKey);
+      return saved ? JSON.parse(saved) : [];
+    }
   });
 
   const [habits, setHabits] = useState<CheckInHabit[]>(() => {
@@ -88,26 +111,88 @@ export default function App() {
   });
 
   const [checkInLogs, setCheckInLogs] = useState<CheckInLog[]>(() => {
-    const saved = localStorage.getItem('media_archive_check_in_logs');
-    return saved ? JSON.parse(saved) : DEFAULT_CHECK_IN_LOGS;
+    if (!initialUser || initialUser === 'Guest') return [];
+    if (initialAdmin) {
+      const saved = localStorage.getItem('media_archive_check_in_logs_admin') || localStorage.getItem('media_archive_check_in_logs');
+      return saved ? JSON.parse(saved) : DEFAULT_CHECK_IN_LOGS;
+    } else {
+      const userKey = `media_archive_check_in_logs_user_${initialUser.toLowerCase()}`;
+      const saved = localStorage.getItem(userKey);
+      return saved ? JSON.parse(saved) : [];
+    }
   });
 
   const [darkMode] = useState<boolean>(true);
 
   // --- Tag System State ---
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(() => {
-    const saved = localStorage.getItem('media_archive_tag_definitions');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
+    if (!initialUser || initialUser === 'Guest') return [];
+    if (initialAdmin) {
+      const saved = localStorage.getItem('media_archive_tags_admin') || localStorage.getItem('media_archive_tag_definitions');
+      return saved ? JSON.parse(saved) : DEFAULT_TAG_DEFINITIONS;
+    } else {
+      const userKey = `media_archive_tags_user_${initialUser.toLowerCase()}`;
+      const saved = localStorage.getItem(userKey);
+      return saved ? JSON.parse(saved) : [];
     }
-    return DEFAULT_TAG_DEFINITIONS;
   });
 
+  // Reload user data when user changes
   useEffect(() => {
-    localStorage.setItem('media_archive_tag_definitions', JSON.stringify(tagDefinitions));
-  }, [tagDefinitions]);
+    if (!currentUser) return;
+    if (currentUser === 'Guest') {
+      handleLogout();
+      return;
+    }
+
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    const itemKey = getStorageKey('items', currentUser, isAdm);
+    const collectionKey = getStorageKey('collections', currentUser, isAdm);
+    const logKey = getStorageKey('logs', currentUser, isAdm);
+    const tagKey = getStorageKey('tags', currentUser, isAdm);
+
+    // Load items
+    const savedItems = localStorage.getItem(itemKey) || (isAdm ? localStorage.getItem('media_archive_items') : null);
+    if (savedItems) {
+      try { setMediaItems(JSON.parse(savedItems)); } catch { setMediaItems(isAdm ? DEFAULT_MEDIA_ITEMS : []); }
+    } else {
+      setMediaItems(isAdm ? DEFAULT_MEDIA_ITEMS : []);
+    }
+
+    // Load collections
+    const savedCols = localStorage.getItem(collectionKey) || (isAdm ? localStorage.getItem('media_archive_collections') : null);
+    if (savedCols) {
+      try { setCollections(JSON.parse(savedCols)); } catch { setCollections(isAdm ? DEFAULT_COLLECTIONS : []); }
+    } else {
+      setCollections(isAdm ? DEFAULT_COLLECTIONS : []);
+    }
+
+    // Load logs
+    const savedLogs = localStorage.getItem(logKey) || (isAdm ? localStorage.getItem('media_archive_check_in_logs') : null);
+    if (savedLogs) {
+      try { setCheckInLogs(JSON.parse(savedLogs)); } catch { setCheckInLogs(isAdm ? DEFAULT_CHECK_IN_LOGS : []); }
+    } else {
+      setCheckInLogs(isAdm ? DEFAULT_CHECK_IN_LOGS : []);
+    }
+
+    // Load tags
+    const savedTags = localStorage.getItem(tagKey) || (isAdm ? localStorage.getItem('media_archive_tag_definitions') : null);
+    if (savedTags) {
+      try { setTagDefinitions(JSON.parse(savedTags)); } catch { setTagDefinitions(isAdm ? DEFAULT_TAG_DEFINITIONS : []); }
+    } else {
+      setTagDefinitions(isAdm ? DEFAULT_TAG_DEFINITIONS : []);
+    }
+  }, [currentUser, isAdmin]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    const tagKey = getStorageKey('tags', currentUser, isAdm);
+    localStorage.setItem(tagKey, JSON.stringify(tagDefinitions));
+    if (isAdm) {
+      localStorage.setItem('media_archive_tag_definitions', JSON.stringify(tagDefinitions));
+    }
+  }, [tagDefinitions, currentUser, isAdmin]);
 
   const handleRegisterTag = (name: string, mediaType: MediaType | 'global' = 'global') => {
     const cleanName = name.trim();
@@ -151,6 +236,44 @@ export default function App() {
     }));
   };
 
+  const handleClearSampleData = () => {
+    setMediaItems([]);
+    setCheckInLogs([]);
+    setSortedMediaIds([]);
+    if (currentUser) {
+      const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+      const itemKey = getStorageKey('items', currentUser, isAdm);
+      const logKey = getStorageKey('logs', currentUser, isAdm);
+      localStorage.setItem(itemKey, JSON.stringify([]));
+      localStorage.setItem(logKey, JSON.stringify([]));
+      if (isAdm) {
+        localStorage.setItem('media_archive_items', JSON.stringify([]));
+        localStorage.setItem('media_archive_check_in_logs', JSON.stringify([]));
+      }
+    }
+  };
+
+  const handleResetSampleData = () => {
+    setMediaItems(DEFAULT_MEDIA_ITEMS);
+    setCollections(DEFAULT_COLLECTIONS);
+    setCheckInLogs(DEFAULT_CHECK_IN_LOGS);
+    setSortedMediaIds(DEFAULT_MEDIA_ITEMS.map(i => i.id));
+    if (currentUser) {
+      const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+      const itemKey = getStorageKey('items', currentUser, isAdm);
+      const collectionKey = getStorageKey('collections', currentUser, isAdm);
+      const logKey = getStorageKey('logs', currentUser, isAdm);
+      localStorage.setItem(itemKey, JSON.stringify(DEFAULT_MEDIA_ITEMS));
+      localStorage.setItem(collectionKey, JSON.stringify(DEFAULT_COLLECTIONS));
+      localStorage.setItem(logKey, JSON.stringify(DEFAULT_CHECK_IN_LOGS));
+      if (isAdm) {
+        localStorage.setItem('media_archive_items', JSON.stringify(DEFAULT_MEDIA_ITEMS));
+        localStorage.setItem('media_archive_collections', JSON.stringify(DEFAULT_COLLECTIONS));
+        localStorage.setItem('media_archive_check_in_logs', JSON.stringify(DEFAULT_CHECK_IN_LOGS));
+      }
+    }
+  };
+
   // --- Search / Filters / Navigation State ---
   // The user requested: "主页只显示清单，然后才是媒体库"
   // Default tab is 'wishlist' (想看清单)
@@ -185,6 +308,76 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showGuidePrompt, setShowGuidePrompt] = useState<boolean>(() => {
+    return localStorage.getItem('media_management_onboarding_completed') !== 'true';
+  });
+
+  const handleUpdateAccount = (newUsername: string, newPassword?: string) => {
+    const usersData = localStorage.getItem('media_management_users');
+    const users = usersData ? JSON.parse(usersData) : {};
+
+    const oldUser = currentUser || '';
+    const oldLower = oldUser.trim().toLowerCase();
+    const newLower = newUsername.trim().toLowerCase();
+
+    const currentPass = users[oldLower] || (oldLower === 'echoingstill' ? 'Echoingstill' : '');
+    const updatedPass = newPassword ? newPassword : currentPass;
+
+    if (oldLower !== newLower) {
+      delete users[oldLower];
+
+      if (!isAdmin) {
+        const itemKeyOld = `media_archive_items_user_${oldLower}`;
+        const itemKeyNew = `media_archive_items_user_${newLower}`;
+        const colKeyOld = `media_archive_collections_user_${oldLower}`;
+        const colKeyNew = `media_archive_collections_user_${newLower}`;
+        const logKeyOld = `media_archive_check_in_logs_user_${oldLower}`;
+        const logKeyNew = `media_archive_check_in_logs_user_${newLower}`;
+        const tagKeyOld = `media_archive_tags_user_${oldLower}`;
+        const tagKeyNew = `media_archive_tags_user_${newLower}`;
+
+        const savedItems = localStorage.getItem(itemKeyOld);
+        if (savedItems) {
+          localStorage.setItem(itemKeyNew, savedItems);
+          localStorage.removeItem(itemKeyOld);
+        }
+
+        const savedCols = localStorage.getItem(colKeyOld);
+        if (savedCols) {
+          localStorage.setItem(colKeyNew, savedCols);
+          localStorage.removeItem(colKeyOld);
+        }
+
+        const savedLogs = localStorage.getItem(logKeyOld);
+        if (savedLogs) {
+          localStorage.setItem(logKeyNew, savedLogs);
+          localStorage.removeItem(logKeyOld);
+        }
+
+        const savedTags = localStorage.getItem(tagKeyOld);
+        if (savedTags) {
+          localStorage.setItem(tagKeyNew, savedTags);
+          localStorage.removeItem(tagKeyOld);
+        }
+      }
+    }
+
+    users[newLower] = updatedPass;
+    localStorage.setItem('media_management_users', JSON.stringify(users));
+
+    setCurrentUser(newUsername.trim());
+    localStorage.setItem('media_management_user', newUsername.trim());
+
+    const isAdm = newLower === 'echoingstill' || newLower === 'admin';
+    setIsAdmin(isAdm);
+    if (isAdm) {
+      localStorage.setItem('media_management_is_admin', 'true');
+    } else {
+      localStorage.removeItem('media_management_is_admin');
+    }
+  };
 
   // Client ID for AI limit tracking
   useEffect(() => {
@@ -194,10 +387,16 @@ export default function App() {
     }
   }, []);
 
-  // Save states to LocalStorage on changes
+  // Save states to LocalStorage on changes with user scoping
   useEffect(() => {
-    localStorage.setItem('media_archive_items', JSON.stringify(mediaItems));
-  }, [mediaItems]);
+    if (!currentUser) return;
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    const key = getStorageKey('items', currentUser, isAdm);
+    localStorage.setItem(key, JSON.stringify(mediaItems));
+    if (isAdm) {
+      localStorage.setItem('media_archive_items', JSON.stringify(mediaItems));
+    }
+  }, [mediaItems, currentUser, isAdmin]);
 
   const mediaIdsString = mediaItems.map(itm => itm.id).join(',');
 
@@ -216,16 +415,28 @@ export default function App() {
   }, [selectedTab, mediaIdsString]);
 
   useEffect(() => {
-    localStorage.setItem('media_archive_collections', JSON.stringify(collections));
-  }, [collections]);
+    if (!currentUser) return;
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    const key = getStorageKey('collections', currentUser, isAdm);
+    localStorage.setItem(key, JSON.stringify(collections));
+    if (isAdm) {
+      localStorage.setItem('media_archive_collections', JSON.stringify(collections));
+    }
+  }, [collections, currentUser, isAdmin]);
 
   useEffect(() => {
     localStorage.setItem('media_archive_habits', JSON.stringify(habits));
   }, [habits]);
 
   useEffect(() => {
-    localStorage.setItem('media_archive_check_in_logs', JSON.stringify(checkInLogs));
-  }, [checkInLogs]);
+    if (!currentUser) return;
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    const key = getStorageKey('logs', currentUser, isAdm);
+    localStorage.setItem(key, JSON.stringify(checkInLogs));
+    if (isAdm) {
+      localStorage.setItem('media_archive_check_in_logs', JSON.stringify(checkInLogs));
+    }
+  }, [checkInLogs, currentUser, isAdmin]);
 
   useEffect(() => {
     // Force dark mode always
@@ -559,13 +770,13 @@ export default function App() {
       <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-6">
         
         {/* Header Section */}
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-6 border-[#E6E0D5] dark:border-zinc-850">
+        <header data-guide="app-header" className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-6 border-[#E6E0D5] dark:border-zinc-850">
           <div className="flex items-center gap-1">
             <div>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold text-[#4A3B32] dark:text-[#DDDAC4] tracking-tight flex items-baseline gap-3">
-                <span>媒体管理</span>
-                <span className="text-3xl md:text-4xl opacity-40 font-serif font-normal text-zinc-400">/</span>
-                <span className="text-xl md:text-2xl opacity-90 font-serif tracking-widest">Media Management</span>
+              <h1 className="text-3xl md:text-5xl font-serif font-bold text-[#4A3B32] dark:text-[#DDDAC4] tracking-tight flex flex-wrap items-baseline gap-3">
+                <span className="text-3xl md:text-5xl font-serif font-bold">Media Management</span>
+                <span className="text-2xl md:text-3xl opacity-30 font-serif font-normal text-zinc-400">/</span>
+                <span className="text-xl md:text-2xl opacity-80 font-serif font-normal">媒体管理</span>
               </h1>
               <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-3 font-serif">
                 阅读是一座随身携带的避难所
@@ -575,9 +786,13 @@ export default function App() {
 
           {/* User Profile, Theme & LogOut */}
           <div className="flex items-center gap-3 self-end md:self-auto text-xs">
-            <div className="flex items-center gap-2 px-3 py-1.5 border border-zinc-800 bg-[#121214] rounded-none">
-              <User size={13} className="opacity-60" />
-              <span className="font-bold uppercase text-[12px] tracking-wider text-zinc-400 font-serif flex items-center gap-1.5">
+            <button
+              onClick={() => setShowAccountSettings(true)}
+              className="flex items-center gap-2 px-3 py-1.5 border border-zinc-800 bg-[#121214] hover:bg-zinc-800/80 transition-colors cursor-pointer rounded-none group"
+              title="点击修改账号用户名与密码"
+            >
+              <User size={13} className="opacity-60 group-hover:opacity-100" />
+              <span className="font-bold uppercase text-[12px] tracking-wider text-zinc-300 font-serif flex items-center gap-1.5">
                 <span>用户: {currentUser}</span>
                 {isAdmin && (
                   <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0.5 font-sans font-semibold">
@@ -585,7 +800,17 @@ export default function App() {
                   </span>
                 )}
               </span>
-            </div>
+            </button>
+
+            {/* Persistent User Guide Button */}
+            <button
+              data-guide="help-btn"
+              onClick={() => setShowUserGuide(true)}
+              className="p-2 rounded-none border border-[#E6E0D5] dark:border-zinc-800 text-[#4A3B32] dark:text-[#DDDAC4] hover:bg-[#4A3B32]/10 dark:hover:bg-[#DDDAC4]/10 transition-colors cursor-pointer flex items-center justify-center"
+              title="查看使用指引"
+            >
+              <HelpCircle size={13} />
+            </button>
 
             <button
               onClick={() => setShowAISettings(true)}
@@ -606,17 +831,56 @@ export default function App() {
           </div>
         </header>
 
+        {/* First Visit Onboarding Banner */}
+        <AnimatePresence>
+          {showGuidePrompt && currentUser && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="p-3 bg-[#4A3B32]/10 dark:bg-[#DDDAC4]/10 border border-[#4A3B32]/30 dark:border-[#DDDAC4]/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-serif"
+            >
+              <div className="flex items-center gap-2 text-[#4A3B32] dark:text-[#DDDAC4]">
+                <Sparkles size={14} className="shrink-0 text-amber-400 animate-pulse" />
+                <span>👋 欢迎使用媒体管理！首次体验建议查看 8 步功能指引，快速掌握书影音录入与合集归档。</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setShowGuidePrompt(false);
+                    setShowUserGuide(true);
+                  }}
+                  className="px-3 py-1 bg-[#4A3B32] dark:bg-[#DDDAC4] text-white dark:text-[#111214] font-bold text-[11px] uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1"
+                >
+                  <HelpCircle size={12} />
+                  <span>查看指引</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowGuidePrompt(false);
+                    localStorage.setItem('media_management_onboarding_completed', 'true');
+                  }}
+                  className="px-2.5 py-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 text-[11px] cursor-pointer"
+                >
+                  稍后再说
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Global Tab Navigation */}
-        <nav className="flex flex-wrap gap-1 border-b pb-1 border-[#E6E0D5] dark:border-[#2D3137]">
+        <nav data-guide="main-nav" className="flex flex-wrap gap-1 border-b pb-1 border-[#E6E0D5] dark:border-[#2D3137]">
           {[
-            { id: 'wishlist', label: '月度清单', icon: <Bookmark size={14} /> },
-            { id: 'archive', label: '媒体档案', icon: <Book size={14} /> },
-            { id: 'collections', label: '合集分组', icon: <Layers size={14} /> },
-            { id: 'calendar', label: '打卡记录', icon: <Calendar size={14} /> },
-            { id: 'backup', label: '数据相关', icon: <Database size={14} /> },
+            { id: 'wishlist', label: '月度清单', icon: <Bookmark size={14} />, guide: 'monthly-wishlist-tab' },
+            { id: 'archive', label: '媒体档案', icon: <Book size={14} />, guide: 'media-archive' },
+            { id: 'collections', label: '合集分组', icon: <Layers size={14} />, guide: 'collections' },
+            { id: 'calendar', label: '打卡记录', icon: <Calendar size={14} />, guide: 'check-in-calendar' },
+            { id: 'backup', label: '数据相关', icon: <Database size={14} />, guide: 'data-management' },
           ].map((tab) => (
             <button
               key={tab.id}
+              data-guide={tab.guide}
               onClick={() => {
                 setSelectedTab(tab.id as any);
                 if (tab.id === 'archive') setSelectedCollectionFilter(null);
@@ -649,8 +913,8 @@ export default function App() {
 
           <div className="flex-grow" />
 
-
           <button
+            data-guide="tags"
             onClick={() => setShowTagManager(true)}
             className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
               darkMode 
@@ -663,6 +927,7 @@ export default function App() {
           </button>
 
           <button
+            data-guide="add-media"
             onClick={() => {
               setActiveMediaEdit(null);
               setShowAddModal(true);
@@ -1178,6 +1443,26 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Account Settings Modal */}
+      <AccountSettingsModal
+        isOpen={showAccountSettings}
+        onClose={() => setShowAccountSettings(false)}
+        currentUser={currentUser || ''}
+        isAdmin={isAdmin}
+        onUpdateAccount={handleUpdateAccount}
+      />
+
+      {/* User Guide Onboarding Tour Modal */}
+      <UserGuideModal
+        isOpen={showUserGuide}
+        onClose={() => setShowUserGuide(false)}
+        onSwitchTab={(tab) => setSelectedTab(tab)}
+        onOpenAddModal={(open) => setShowAddModal(open)}
+        onClearSampleData={handleClearSampleData}
+        onResetSampleData={handleResetSampleData}
+        isAdmin={isAdmin}
+      />
 
     </div>
   );

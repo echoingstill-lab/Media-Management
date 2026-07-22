@@ -414,7 +414,7 @@ export default function DataManagement({
   };
 
   return (
-    <div className="space-y-8 font-serif">
+    <div data-guide="data-management" className="space-y-8 font-serif">
       
       {/* 1. Core Backup & Restore */}
       <div className={`border p-6 rounded-none transition-all duration-300 ${

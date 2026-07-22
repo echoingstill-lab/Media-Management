@@ -434,6 +434,309 @@ async function parseDoubanSubject(input: string): Promise<ParsedMedia | null> {
   };
 }
 
+function isUrlInput(input: string): boolean {
+  try {
+    new URL(input);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeCommonUrl(input: string): string {
+  const parsed = new URL(input);
+
+  if (parsed.hostname === "music.163.com" && parsed.hash.startsWith("#/")) {
+    const hashUrl = new URL(parsed.hash.slice(1), parsed.origin);
+    parsed.pathname = hashUrl.pathname;
+    parsed.search = hashUrl.search;
+    parsed.hash = "";
+  }
+
+  return parsed.toString();
+}
+
+function getCommonUrlCandidates(input: string): string[] {
+  const normalized = normalizeCommonUrl(input);
+  const parsed = new URL(normalized);
+  const candidates = [normalized];
+
+  if (parsed.hostname === "music.apple.com" && /^\/[a-z]{2}\//i.test(parsed.pathname)) {
+    const cnUrl = new URL(normalized);
+    cnUrl.pathname = cnUrl.pathname.replace(/^\/[a-z]{2}\//i, "/cn/");
+    candidates.unshift(cnUrl.toString());
+  }
+
+  if (parsed.hostname === "music.163.com" && parsed.pathname === "/song") {
+    const mobileUrl = new URL(normalized);
+    mobileUrl.pathname = "/m/song";
+    candidates.unshift(mobileUrl.toString());
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function parseImdbUrl(input: string): string | null {
+  try {
+    const parsed = new URL(input);
+    if (!/(^|\.)imdb\.com$/i.test(parsed.hostname)) return null;
+    return parsed.pathname.match(/\/title\/(tt\d+)/)?.[1] || null;
+  } catch {
+    return null;
+  }
+}
+
+function parseSteamUrl(input: string): { appId: string; slug: string } | null {
+  try {
+    const parsed = new URL(input);
+    if (parsed.hostname !== "store.steampowered.com") return null;
+    const match = parsed.pathname.match(/\/app\/(\d+)\/?([^/]*)/);
+    if (!match) return null;
+    return { appId: match[1], slug: decodeURIComponent(match[2] || "") };
+  } catch {
+    return null;
+  }
+}
+
+async function parseSteamSubject(input: string): Promise<ParsedMedia | null> {
+  const steam = parseSteamUrl(input);
+  if (!steam) return null;
+
+  try {
+    const response = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam.appId}&l=schinese`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+      },
+    });
+    if (response.ok) {
+      const payload = await response.json();
+      const data = payload?.[steam.appId]?.data;
+      if (data?.name) {
+        return {
+          title: String(data.name).trim(),
+          type: "game",
+          creator: Array.isArray(data.developers) ? data.developers.join(" / ") : "",
+          coverUrl: isValidImageUrl(data.header_image || "") ? data.header_image : "",
+          description: stripHtml(data.short_description || ""),
+          tags: Array.isArray(data.genres) ? data.genres.map((genre: any) => String(genre?.description || "")).filter(Boolean) : [],
+          rating: null,
+          releaseYear: extractCommonYear(data.release_date?.date || ""),
+        };
+      }
+    }
+  } catch {
+    // Fall back to deterministic Steam app metadata below.
+  }
+
+  const fallbackTitle = steam.slug
+    ? steam.slug.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim()
+    : `Steam App ${steam.appId}`;
+
+  return {
+    title: fallbackTitle,
+    type: "game",
+    creator: "",
+    coverUrl: `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${steam.appId}/header.jpg`,
+    description: "",
+    tags: [],
+    rating: null,
+    releaseYear: null,
+  };
+}
+
+async function parseImdbSubject(input: string): Promise<ParsedMedia | null> {
+  const imdbId = parseImdbUrl(input);
+  if (!imdbId) return null;
+
+  try {
+    const response = await fetch(`https://v3.sg.media-imdb.com/suggestion/t/${imdbId}.json`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+      },
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const item = Array.isArray(payload?.d)
+      ? payload.d.find((entry: any) => entry?.id === imdbId) || payload.d[0]
+      : null;
+    if (!item?.l) return null;
+
+    const qid = String(item.qid || item.q || "").toLowerCase();
+    const type: ParsedMedia["type"] =
+      qid.includes("tv") ? "tv" :
+      qid.includes("game") ? "game" :
+      "movie";
+
+    return {
+      title: String(item.l).trim(),
+      type,
+      creator: String(item.s || "").trim(),
+      coverUrl: isValidImageUrl(item.i?.imageUrl || "") ? item.i.imageUrl : "",
+      description: "",
+      tags: [],
+      rating: null,
+      releaseYear: item.y || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseWikipediaFallback(input: string): ParsedMedia | null {
+  try {
+    const parsed = new URL(input);
+    if (!parsed.hostname.includes("wikipedia.org")) return null;
+    const rawPage = decodeURIComponent(parsed.pathname.split("/").pop() || "").replace(/_/g, " ");
+    if (!rawPage) return null;
+    const type = inferCommonType(parsed.hostname, rawPage, rawPage, "");
+    const title = rawPage.replace(/\s*[（(](小说|電影|电影|电视剧|動畫|动画|遊戲|游戏|音樂|音乐)[）)]\s*$/u, "").trim();
+    return {
+      title,
+      type,
+      creator: "",
+      coverUrl: "",
+      description: "",
+      tags: [],
+      rating: null,
+      releaseYear: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function inferCommonType(hostname: string, title: string, description: string, ogType: string): ParsedMedia["type"] {
+  const host = hostname.toLowerCase();
+  const text = `${title} ${description} ${ogType}`;
+  if (host.includes("steampowered.com")) return "game";
+  if (host.includes("music.apple.com") || host.includes("music.163.com") || host.includes("open.spotify.com")) return "music";
+  if (host.includes("imdb.com")) return "movie";
+  if (host.includes("bangumi.tv") || host.includes("bgm.tv") || host.includes("chii.in")) {
+    if (/游戏|game/i.test(text)) return "game";
+    if (/音乐|唱片|music|album/i.test(text)) return "music";
+    if (/书籍|图书|小说|book/i.test(text)) return "book";
+    return "anime";
+  }
+  if (/动画|动漫|anime|番剧/i.test(text)) return "anime";
+  if (/电视剧|剧集|series|tv/i.test(text)) return "tv";
+  if (/电影|movie|film/i.test(text)) return "movie";
+  if (/游戏|game|steam/i.test(text)) return "game";
+  if (/音乐|歌曲|专辑|唱片|music|album|song/i.test(text)) return "music";
+  if (/图书|小说|书籍|book|novel/i.test(text)) return "book";
+  return "other";
+}
+
+function cleanCommonTitle(hostname: string, rawTitle: string): string {
+  let title = decodeHtml(rawTitle)
+    .replace(/\s+/g, " ")
+    .replace(/^‎/, "")
+    .trim();
+
+  if (hostname.includes("steampowered.com")) {
+    title = title.replace(/^Steam\s+上的\s*/u, "").trim();
+  }
+
+  if (hostname.includes("wikipedia.org")) {
+    title = title.replace(/\s*-\s*维基百科，自由的百科全书\s*$/u, "").trim();
+  }
+
+  if (hostname.includes("music.apple.com")) {
+    const appleOgAlbum = title.match(/^Apple\s*Music\s*上(.+?)的专辑《([^》]+)》/u);
+    if (appleOgAlbum) return appleOgAlbum[2].trim();
+    const appleAlbum = title.match(/《([^》]+)》\s*-\s*(.+?)的专辑/u);
+    if (appleAlbum) return appleAlbum[1].trim();
+    title = title.replace(/^Apple\s*Music\s*上/u, "").trim();
+  }
+
+  if (hostname.includes("music.163.com")) {
+    title = title.replace(/\s*-\s*网易云音乐\s*$/u, "").trim();
+    title = title.split(/\s+-\s+/)[0]?.trim() || title;
+  }
+
+  if (hostname.includes("bangumi.tv") || hostname.includes("bgm.tv") || hostname.includes("chii.in")) {
+    title = title.replace(/\s*\|\s*番组计划\s*$/u, "").trim();
+  }
+
+  return title;
+}
+
+function extractCommonCreator(hostname: string, title: string, description: string): string {
+  const host = hostname.toLowerCase();
+  const text = `${title} ${description}`;
+
+  if (host.includes("music.apple.com")) {
+    return title.match(/^Apple\s*Music\s*上(.+?)的专辑《[^》]+》/u)?.[1]?.trim() ||
+      title.match(/-\s*(.+?)的专辑/u)?.[1]?.trim() ||
+      "";
+  }
+
+  if (host.includes("music.163.com")) {
+    return description.match(/由\s+(.+?)\s+演唱/u)?.[1]?.trim() || title.split(/\s+-\s+/)[1]?.trim() || "";
+  }
+
+  if (host.includes("steampowered.com")) {
+    return "";
+  }
+
+  return text.match(/作者[:：]\s*([^，。]+)/u)?.[1]?.trim() || "";
+}
+
+function extractCommonYear(text: string): string | number | null {
+  return text.match(/(?:19|20)\d{2}/)?.[0] || null;
+}
+
+async function parseCommonMetadata(input: string): Promise<ParsedMedia | null> {
+  if (!isUrlInput(input)) return null;
+  const imdbResult = await parseImdbSubject(input);
+  if (imdbResult) return imdbResult;
+  const steamResult = await parseSteamSubject(input);
+  if (steamResult) return steamResult;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalizeCommonUrl(input));
+  } catch {
+    return null;
+  }
+
+  for (const candidate of getCommonUrlCandidates(input)) {
+    try {
+      const fetched = await fetchText(candidate);
+      if (!fetched.ok || !fetched.text) continue;
+
+      const html = fetched.text;
+      const candidateUrl = new URL(candidate);
+      const rawTitle = getMetaContent(html, "og:title") || getMetaContent(html, "twitter:title") || getTitleTag(html);
+      const description = getMetaContent(html, "og:description") || getMetaContent(html, "description") || "";
+      const coverUrl = getMetaContent(html, "og:image") || getMetaContent(html, "twitter:image") || getMetaContent(html, "image") || "";
+      const ogType = getMetaContent(html, "og:type");
+      const title = cleanCommonTitle(candidateUrl.hostname, rawTitle);
+
+      if (!title || ["403 forbidden", "access denied"].includes(title.toLowerCase())) continue;
+
+      const creator = extractCommonCreator(candidateUrl.hostname, rawTitle, description);
+      const type = inferCommonType(candidateUrl.hostname, title, description, ogType);
+
+      return {
+        title,
+        type,
+        creator,
+        coverUrl: isValidImageUrl(coverUrl) ? coverUrl : "",
+        description: decodeHtml(description).replace(/\s+/g, " ").trim(),
+        tags: [],
+        rating: null,
+        releaseYear: extractCommonYear(`${rawTitle} ${description}`),
+      };
+    } catch {
+      // Try the next normalized candidate before falling back to AI.
+    }
+  }
+
+  return parseWikipediaFallback(input);
+}
+
 // Helper to validate and sanitize AI parse output
 function sanitizeParseResult(resultText: string): { data?: any; error?: string } {
   let json: any = {};
@@ -472,6 +775,11 @@ app.post("/api/parse-link", async (req, res) => {
     const doubanResult = await parseDoubanSubject(url);
     if (doubanResult) {
       return res.json({ success: true, data: doubanResult, remaining: 999, source: "douban" });
+    }
+
+    const commonMetadataResult = await parseCommonMetadata(url);
+    if (commonMetadataResult) {
+      return res.json({ success: true, data: commonMetadataResult, remaining: 999, source: "metadata" });
     }
 
     // Usage check for shared key (public mode)

@@ -5,9 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder } from 'lucide-react';
-import { MediaItem, Collection, CheckInHabit, CheckInLog, MediaType, MEDIA_TYPE_LABELS } from './types';
-import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS, deduplicateLogs } from './utils/helpers';
+import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder, Tag, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { MediaItem, Collection, CheckInHabit, CheckInLog, MediaType, MEDIA_TYPE_LABELS, TagDefinition } from './types';
+import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS, DEFAULT_TAG_DEFINITIONS, deduplicateLogs } from './utils/helpers';
 
 // Components
 import MediaCard from './components/MediaCard';
@@ -19,6 +19,7 @@ import DataManagement from './components/DataManagement';
 import WishlistSection from './components/WishlistSection';
 import LoginView from './components/LoginView';
 import AISettingsModal from './components/AISettingsModal';
+import TagManagerModal from './components/TagManagerModal';
 
 export default function App() {
   // --- Authentication State ---
@@ -93,6 +94,63 @@ export default function App() {
 
   const [darkMode] = useState<boolean>(true);
 
+  // --- Tag System State ---
+  const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(() => {
+    const saved = localStorage.getItem('media_archive_tag_definitions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return DEFAULT_TAG_DEFINITIONS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('media_archive_tag_definitions', JSON.stringify(tagDefinitions));
+  }, [tagDefinitions]);
+
+  const handleRegisterTag = (name: string, mediaType: MediaType | 'global' = 'global') => {
+    const cleanName = name.trim();
+    if (!cleanName) return;
+    setTagDefinitions(prev => {
+      const existing = prev.find(t => t.name.toLowerCase() === cleanName.toLowerCase());
+      if (existing) {
+        if (mediaType && existing.mediaType !== mediaType) {
+          return prev.map(t => t.id === existing.id ? { ...t, mediaType } : t);
+        }
+        return prev;
+      }
+      const newTag: TagDefinition = {
+        id: `tag-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: cleanName,
+        mediaType,
+      };
+      return [...prev, newTag];
+    });
+  };
+
+  const handleRenameTagInItems = (oldName: string, newName: string) => {
+    setMediaItems(prev => prev.map(item => {
+      if (!item.tags || !item.tags.includes(oldName)) return item;
+      return {
+        ...item,
+        tags: item.tags.map(t => t === oldName ? newName : t),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  };
+
+  const handleDeleteTagInItems = (tagName: string) => {
+    setMediaItems(prev => prev.map(item => {
+      if (!item.tags || !item.tags.includes(tagName)) return item;
+      return {
+        ...item,
+        tags: item.tags.filter(t => t !== tagName),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  };
+
   // --- Search / Filters / Navigation State ---
   // The user requested: "主页只显示清单，然后才是媒体库"
   // Default tab is 'wishlist' (想看清单)
@@ -101,6 +159,8 @@ export default function App() {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<MediaType | 'all'>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<MediaItem['status'] | 'all'>('all');
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | 'all'>('all');
+  const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
 
   // --- Modal Popups Trigger State ---
   const [activeMediaDetailId, setActiveMediaDetailId] = useState<string | null>(null);
@@ -124,6 +184,7 @@ export default function App() {
   const [activeMediaEdit, setActiveMediaEdit] = useState<MediaItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
 
   // Client ID for AI limit tracking
   useEffect(() => {
@@ -369,6 +430,77 @@ export default function App() {
     setMediaItems(prev => [...newItems, ...prev]);
   };
 
+  // Derived unique bound & standalone tags for the archive tag filter bar
+  const { boundTagsForCurrentCategory, standaloneTags } = React.useMemo(() => {
+    // Count occurrences of each tag among items matching status filter
+    const countMap = new Map<string, number>();
+    mediaItems.forEach(item => {
+      if (selectedStatusFilter === 'all' || item.status === selectedStatusFilter) {
+        item.tags?.forEach(tag => {
+          countMap.set(tag, (countMap.get(tag) || 0) + 1);
+        });
+      }
+    });
+
+    // 1. Bound tags for selected category (shown ONLY when a specific category is selected)
+    const bound: { name: string; count: number; mediaType: MediaType }[] = [];
+    if (selectedTypeFilter !== 'all') {
+      const knownBoundNames = new Set<string>();
+      tagDefinitions
+        .filter(t => t.mediaType === selectedTypeFilter)
+        .forEach(t => knownBoundNames.add(t.name));
+
+      mediaItems.forEach(item => {
+        if (item.type === selectedTypeFilter) {
+          item.tags?.forEach(tag => {
+            const def = tagDefinitions.find(t => t.name === tag);
+            if (def && def.mediaType === selectedTypeFilter) {
+              knownBoundNames.add(tag);
+            }
+          });
+        }
+      });
+
+      knownBoundNames.forEach(name => {
+        bound.push({
+          name,
+          count: countMap.get(name) || 0,
+          mediaType: selectedTypeFilter,
+        });
+      });
+      bound.sort((a, b) => b.count - a.count);
+    }
+
+    // 2. Standalone (uncategorized / global) tags
+    const knownStandaloneNames = new Set<string>();
+    tagDefinitions
+      .filter(t => !t.mediaType || t.mediaType === 'global')
+      .forEach(t => knownStandaloneNames.add(t.name));
+
+    mediaItems.forEach(item => {
+      if (selectedTypeFilter === 'all' || item.type === selectedTypeFilter) {
+        item.tags?.forEach(tag => {
+          const def = tagDefinitions.find(t => t.name === tag);
+          if (!def || !def.mediaType || def.mediaType === 'global') {
+            knownStandaloneNames.add(tag);
+          }
+        });
+      }
+    });
+
+    const standalone: { name: string; count: number; mediaType: 'global' }[] = [];
+    knownStandaloneNames.forEach(name => {
+      standalone.push({
+        name,
+        count: countMap.get(name) || 0,
+        mediaType: 'global',
+      });
+    });
+    standalone.sort((a, b) => b.count - a.count);
+
+    return { boundTagsForCurrentCategory: bound, standaloneTags: standalone };
+  }, [mediaItems, selectedTypeFilter, selectedStatusFilter, tagDefinitions]);
+
   // --- Filters Pipeline ---
   const filteredItems = mediaItems
     .filter(item => {
@@ -383,7 +515,10 @@ export default function App() {
       const matchesCollection =
         selectedCollectionFilter === null || item.collections.includes(selectedCollectionFilter);
 
-      return matchesSearch && matchesType && matchesStatus && matchesCollection;
+      const matchesTag =
+        selectedTagFilter === 'all' || (item.tags && item.tags.includes(selectedTagFilter));
+
+      return matchesSearch && matchesType && matchesStatus && matchesCollection && matchesTag;
     })
     .sort((a, b) => {
       const idxA = sortedMediaIds.indexOf(a.id);
@@ -516,6 +651,18 @@ export default function App() {
 
 
           <button
+            onClick={() => setShowTagManager(true)}
+            className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer rounded-none border-b-2 font-serif ${
+              darkMode 
+                ? 'border-transparent text-zinc-400 hover:text-[#DDDAC4] hover:border-[#DDDAC4]' 
+                : 'border-transparent text-zinc-500 hover:text-[#4A3B32] hover:border-[#4A3B32]'
+            }`}
+          >
+            <span>管理标签库</span>
+            <Tag size={14} />
+          </button>
+
+          <button
             onClick={() => {
               setActiveMediaEdit(null);
               setShowAddModal(true);
@@ -526,8 +673,8 @@ export default function App() {
                 : 'border-transparent text-zinc-500 hover:text-[#4A3B32] hover:border-[#4A3B32]'
             }`}
           >
-            <Plus size={14} />
             <span>录入档案</span>
+            <Plus size={14} />
           </button>
         </nav>
 
@@ -696,6 +843,119 @@ export default function App() {
               </div>
             </div>
 
+            {/* Tag Filter Dock in Media Archive */}
+            {(boundTagsForCurrentCategory.length > 0 || standaloneTags.length > 0) && (
+              <div className="space-y-2.5 mt-4 font-serif">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Tag size={13} className="text-[#8c7a6b] dark:text-[#a8988a]" />
+                    <span className="text-sm font-serif uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-bold">标签筛选</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {selectedTagFilter !== 'all' && (
+                      <button
+                        onClick={() => setSelectedTagFilter('all')}
+                        className="text-[11px] text-[#4A3B32] dark:text-[#DDDAC4] hover:underline font-serif font-bold cursor-pointer"
+                      >
+                        清除筛选 (当前: #{selectedTagFilter})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 1. Category Bound Tags Block (Only shown when a category is selected) */}
+                {selectedTypeFilter !== 'all' && boundTagsForCurrentCategory.length > 0 && (
+                  <div className="p-2.5 bg-[#F4F1EA] dark:bg-[#1C1E20] border border-[#DDD7C8] dark:border-[#2D3137] space-y-1.5">
+                    <div className="text-xs font-bold text-[#4A3B32] dark:text-[#DDDAC4] flex items-center gap-1.5 font-serif">
+                      <span className="w-1.5 h-1.5 bg-[#4A3B32] dark:bg-[#DDDAC4] inline-block" />
+                      <span>【{MEDIA_TYPE_LABELS[selectedTypeFilter]}】专属关联标签</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {boundTagsForCurrentCategory.map(({ name, count }) => {
+                        const isSelected = selectedTagFilter === name;
+                        return (
+                          <button
+                            key={name}
+                            onClick={() => setSelectedTagFilter(isSelected ? 'all' : name)}
+                            className={`px-2.5 py-1 text-xs transition-all cursor-pointer flex items-center gap-1 border ${
+                              isSelected
+                                ? 'bg-[#4A3B32] text-white border-[#4A3B32] dark:bg-[#DDDAC4] dark:text-[#111214] font-bold shadow-xs'
+                                : (darkMode
+                                    ? 'bg-[#25272A] text-[#D5D0C3] border-[#353A40] hover:border-[#DDDAC4]'
+                                    : 'bg-[#EFECE4] text-[#4A3B32] border-[#D8D1C2] hover:bg-[#E8E4D8] hover:border-[#4A3B32]')
+                            }`}
+                          >
+                            <span>#{name}</span>
+                            <span className="text-[10px] opacity-75">({count})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Standalone / Uncategorized Tags Block (Shows max 2 lines default, collapsible) */}
+                {standaloneTags.length > 0 && (
+                  <div className="p-2.5 bg-white dark:bg-[#111214] border border-[#E6E0D5] dark:border-[#2d3137] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-zinc-400 inline-block" />
+                        <span>通用独立标签</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsStandaloneTagsExpanded(!isStandaloneTagsExpanded)}
+                        className="text-[11px] text-[#4A3B32] dark:text-[#DDDAC4] hover:underline font-bold cursor-pointer flex items-center gap-1"
+                      >
+                        <span>{isStandaloneTagsExpanded ? '收起标签' : '展开更多'}</span>
+                        {isStandaloneTagsExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                    </div>
+
+                    <div
+                      className={`flex flex-wrap gap-1.5 transition-all duration-300 ${
+                        isStandaloneTagsExpanded ? '' : 'max-h-[68px] overflow-hidden'
+                      }`}
+                    >
+                      {/* All tags option */}
+                      <button
+                        onClick={() => setSelectedTagFilter('all')}
+                        className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer border ${
+                          selectedTagFilter === 'all'
+                            ? 'bg-[#4A3B32] text-[#FBF9F3] border-[#4A3B32] dark:bg-[#DDDAC4] dark:text-[#111214] dark:border-[#DDDAC4]'
+                            : (darkMode
+                                ? 'bg-[#191b1e]/40 text-zinc-400 border-[#2d3137] hover:bg-zinc-900 hover:text-zinc-200'
+                                : 'bg-[#FAF8F5] text-[#756256] border-[#E6E0D5] hover:bg-white hover:text-[#4A3B32]')
+                        }`}
+                      >
+                        全部标签
+                      </button>
+
+                      {standaloneTags.map(({ name, count }) => {
+                        const isSelected = selectedTagFilter === name;
+                        return (
+                          <button
+                            key={name}
+                            onClick={() => setSelectedTagFilter(isSelected ? 'all' : name)}
+                            className={`px-2.5 py-1 text-xs transition-all cursor-pointer flex items-center gap-1 border ${
+                              isSelected
+                                ? 'bg-[#4A3B32] text-white border-[#4A3B32] dark:bg-[#DDDAC4] dark:text-[#111214] dark:border-[#DDDAC4] font-bold shadow-sm'
+                                : (darkMode
+                                    ? 'bg-[#191b1e] text-zinc-300 border-[#2d3137] hover:border-zinc-500'
+                                    : 'bg-[#FAF8F5] text-zinc-700 border-[#E6E0D5] hover:border-[#4A3B32]')
+                            }`}
+                          >
+                            <span>#{name}</span>
+                            <span className="text-[10px] opacity-60">({count})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Unified grid display of media records */}
             {filteredItems.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 mt-4">
@@ -816,6 +1076,8 @@ export default function App() {
       {activeMediaDetail && (
         <MediaDetailModal
           item={activeMediaDetail}
+          tagDefinitions={tagDefinitions}
+          onRegisterTag={handleRegisterTag}
           onUpdateItem={(updated) => {
             setMediaItems(prev => prev.map(m => m.id === updated.id ? updated : m));
           }}
@@ -833,6 +1095,9 @@ export default function App() {
         <MediaEditModal
           item={activeMediaEdit || undefined}
           collections={collections}
+          tagDefinitions={tagDefinitions}
+          onRegisterTag={handleRegisterTag}
+          onOpenTagManager={() => setShowTagManager(true)}
           onSave={handleCreateOrUpdateMedia}
           onClose={() => {
             setShowAddModal(false);
@@ -840,6 +1105,17 @@ export default function App() {
           }}
         />
       )}
+
+      {/* ==================== TAG MANAGER MODAL ==================== */}
+      <TagManagerModal
+        isOpen={showTagManager}
+        onClose={() => setShowTagManager(false)}
+        tagDefinitions={tagDefinitions}
+        mediaItems={mediaItems}
+        onUpdateTagDefinitions={setTagDefinitions}
+        onRenameTagInItems={handleRenameTagInItems}
+        onDeleteTagInItems={handleDeleteTagInItems}
+      />
 
       {/* Global Collection Context Menu */}
       <AnimatePresence>

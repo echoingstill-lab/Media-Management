@@ -4,13 +4,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users } from 'lucide-react';
-import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS } from '../types';
-import { generateSvgCover } from '../utils/helpers';
+import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users, MapPin, Settings } from 'lucide-react';
+import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
+import { generateSvgCover, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
 
 interface MediaEditModalProps {
   item?: MediaItem; // If present, we are editing; if absent, creating
   collections: Collection[];
+  tagDefinitions?: TagDefinition[];
+  onRegisterTag?: (name: string, mediaType?: MediaType | 'global') => void;
+  onOpenTagManager?: () => void;
   onSave: (item: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onClose: () => void;
 }
@@ -18,6 +21,9 @@ interface MediaEditModalProps {
 export default function MediaEditModal({
   item,
   collections,
+  tagDefinitions,
+  onRegisterTag,
+  onOpenTagManager,
   onSave,
   onClose,
 }: MediaEditModalProps) {
@@ -31,6 +37,7 @@ export default function MediaEditModal({
   const [startDate, setStartDate] = useState('');
   const [completedDate, setCompletedDate] = useState('');
   const [watchedWith, setWatchedWith] = useState('');
+  const [watchedWithLocation, setWatchedWithLocation] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState('');
   const [selectedColIds, setSelectedColIds] = useState<string[]>([]);
@@ -69,6 +76,14 @@ export default function MediaEditModal({
 
   const [isEditingPresetTags, setIsEditingPresetTags] = useState(false);
   const [newPresetTagInput, setNewPresetTagInput] = useState('');
+
+  // Lock background body scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   // Persist category tags
   useEffect(() => {
@@ -111,6 +126,7 @@ export default function MediaEditModal({
       setStartDate(item.startDate || '');
       setCompletedDate(item.completedDate || '');
       setWatchedWith(item.watchedWith || '');
+      setWatchedWithLocation(item.watchedWithLocation || '');
       setSelectedTags(item.tags || []);
       setSelectedColIds(item.collections || []);
       setWishlistMonth(item.wishlistMonth || '');
@@ -127,6 +143,7 @@ export default function MediaEditModal({
       setStartDate('');
       setCompletedDate('');
       setWatchedWith('');
+      setWatchedWithLocation('');
       setSelectedTags([]);
       setSelectedColIds([]);
       setWishlistMonth('');
@@ -235,6 +252,7 @@ export default function MediaEditModal({
       startDate: startDate || undefined,
       completedDate: status === 'completed' ? completedDate : undefined,
       watchedWith: watchedWith.trim() || undefined,
+      watchedWithLocation: watchedWithLocation.trim() || undefined,
       reReadCount: item?.reReadCount || 0,
       reReadLogs: item?.reReadLogs || [],
       personalRating: item?.personalRating || 0,
@@ -307,6 +325,187 @@ export default function MediaEditModal({
                 <p className="text-[10px] text-red-500 dark:text-red-400 mt-1">{aiError}</p>
               )}
             </div>
+
+          {/* Tags and Collections Section (Placed right below AI parsing, above basic book info) */}
+          <div className="p-4 rounded-none bg-white/45 dark:bg-zinc-950/30 border border-[#dcd6cb] dark:border-[#2D3137] space-y-4 font-serif">
+            {/* Collections Selector */}
+            {collections.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">合集归类</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {collections.map(col => {
+                    const isSelected = selectedColIds.includes(col.id);
+                    return (
+                      <button
+                        key={col.id}
+                        type="button"
+                        onClick={() => toggleCollection(col.id)}
+                        className={`px-2.5 py-1 rounded-none text-[10px] border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-transparent font-bold'
+                            : 'bg-white dark:bg-zinc-900/60 text-zinc-600 dark:text-zinc-400 border-[#dcd6cb] dark:border-[#2D3137] hover:text-zinc-900 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        {col.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recommended & Custom Tags Section */}
+            <div className="space-y-3 pt-2 border-t border-[#dcd6cb] dark:border-[#2D3137]">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 font-serif">
+                  <Tag size={12} className="text-[#8c7a6b] dark:text-[#a8988a]" />
+                  <span>标签选择与管理</span>
+                </h4>
+                {onOpenTagManager && (
+                  <button
+                    type="button"
+                    onClick={onOpenTagManager}
+                    className="text-[10px] font-bold text-[#4A3B32] dark:text-[#DDDAC4] hover:underline cursor-pointer flex items-center gap-1 font-serif"
+                  >
+                    <span>管理标签库</span>
+                    <Settings size={11} />
+                  </button>
+                )}
+              </div>
+
+              {(() => {
+                const allDefs = tagDefinitions && tagDefinitions.length > 0 ? tagDefinitions : DEFAULT_TAG_DEFINITIONS;
+                const boundTagsForType = allDefs.filter(t => t.mediaType === type);
+                const globalTags = allDefs.filter(t => t.mediaType === 'global' || !t.mediaType);
+
+                return (
+                  <div className="space-y-3">
+                    {/* Bound tags for current media type */}
+                    {boundTagsForType.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-[#4A3B32] dark:text-[#DDDAC4] block">
+                          【{MEDIA_TYPE_LABELS[type]}】绑定专属标签：
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {boundTagsForType.map(tagDef => {
+                            const isSelected = selectedTags.includes(tagDef.name);
+                            return (
+                              <button
+                                key={tagDef.id}
+                                type="button"
+                                onClick={() => toggleTag(tagDef.name)}
+                                className={`px-2.5 py-1 text-[10px] border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#3D3028] text-white border-[#3D3028] dark:bg-[#DDDAC4] dark:text-[#111214] font-bold shadow-xs'
+                                    : 'bg-[#EFECE4] text-[#4A3B32] border-[#D8D1C2] dark:bg-[#25272A] dark:text-[#D5D0C3] dark:border-[#353A40] hover:border-[#4A3B32]'
+                                }`}
+                              >
+                                #{tagDef.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Standalone / Global tags */}
+                    {globalTags.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 block">
+                          通用独立标签：
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {globalTags.map(tagDef => {
+                            const isSelected = selectedTags.includes(tagDef.name);
+                            return (
+                              <button
+                                key={tagDef.id}
+                                type="button"
+                                onClick={() => toggleTag(tagDef.name)}
+                                className={`px-2.5 py-1 text-[10px] border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#4A3B32] text-white border-[#4A3B32] dark:bg-[#DDDAC4] dark:text-[#111214] font-bold shadow-xs'
+                                    : 'bg-[#F2EFE9] text-[#52463E] border-[#DDD7C8] dark:bg-[#1C1E20] dark:text-[#C5C0B3] dark:border-[#2D3137] hover:border-[#4A3B32]'
+                                }`}
+                              >
+                                #{tagDef.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Selected tags & custom tag entry */}
+              <div className="space-y-2 pt-1">
+                <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 block">已选与自定义标签：</span>
+                <div className="flex flex-wrap gap-1.5 items-center bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] p-2 min-h-[36px]">
+                  {selectedTags.length > 0 ? (
+                    selectedTags.map(t => (
+                      <span key={t} className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[#FAF8F5] dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-[#E6E0D5] dark:border-zinc-700 font-medium">
+                        <span>#{t}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleTag(t)}
+                          className="text-[9px] hover:text-red-500 cursor-pointer ml-1 font-bold"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-zinc-400 italic">尚未选择或输入任何标签</span>
+                  )}
+                </div>
+
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="手动输入新标签..."
+                    value={customTagInput}
+                    onChange={(e) => setCustomTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const cleanTag = customTagInput.trim();
+                        if (cleanTag) {
+                          if (!selectedTags.includes(cleanTag)) {
+                            setSelectedTags([...selectedTags, cleanTag]);
+                          }
+                          if (onRegisterTag) {
+                            onRegisterTag(cleanTag, type);
+                          }
+                          setCustomTagInput('');
+                        }
+                      }
+                    }}
+                    className="flex-grow text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 px-2.5 py-1.5 focus:outline-none focus:border-[#635C56]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleanTag = customTagInput.trim();
+                      if (cleanTag) {
+                        if (!selectedTags.includes(cleanTag)) {
+                          setSelectedTags([...selectedTags, cleanTag]);
+                        }
+                        if (onRegisterTag) {
+                          onRegisterTag(cleanTag, type);
+                        }
+                        setCustomTagInput('');
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs bg-[#4A3B32] dark:bg-[#DDDAC4] text-[#FBF9F3] dark:text-[#111214] hover:opacity-90 font-medium cursor-pointer"
+                  >
+                    添加
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Form */}
           <form id="media-edit-form" onSubmit={handleSave} className="space-y-5">
@@ -504,18 +703,34 @@ export default function MediaEditModal({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
-                      <Users size={10} />
-                      <span>共同观看/阅读 (备注对象)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="例如：家人、张三、小明..."
-                      value={watchedWith}
-                      onChange={(e) => setWatchedWith(e.target.value)}
-                      className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 focus:outline-none focus:border-[#635C56]"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 flex items-center gap-1 font-semibold">
+                        <Users size={11} />
+                        <span>共同观看/阅读 (同行对象)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="例如：家人、张三、小明..."
+                        value={watchedWith}
+                        onChange={(e) => setWatchedWith(e.target.value)}
+                        className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 focus:outline-none focus:border-[#635C56]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 flex items-center gap-1 font-semibold">
+                        <MapPin size={11} />
+                        <span>同看地点与备注</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="例如：北京影院、家客厅、旅途中..."
+                        value={watchedWithLocation}
+                        onChange={(e) => setWatchedWithLocation(e.target.value)}
+                        className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-1.5 focus:outline-none focus:border-[#635C56]"
+                      />
+                    </div>
                   </div>
 
                   {/* Description */}
@@ -528,141 +743,6 @@ export default function MediaEditModal({
                       rows={2}
                       className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-200 rounded-none px-2.5 py-2 focus:outline-none focus:border-[#635C56] resize-none leading-relaxed"
                     />
-                  </div>
-
-                  {/* Collections */}
-                  {collections.length > 0 && (
-                    <div>
-                      <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1.5">合集归类</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {collections.map(col => {
-                          const isSelected = selectedColIds.includes(col.id);
-                          return (
-                            <button
-                              key={col.id}
-                              type="button"
-                              onClick={() => toggleCollection(col.id)}
-                              className={`px-2.5 py-1 rounded-none text-[10px] border transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-[#4A3B32] text-[#FBF9F3] dark:bg-[#DDDAC4] dark:text-[#111214] border-transparent font-medium'
-                                  : 'bg-white dark:bg-zinc-900/60 text-zinc-600 dark:text-zinc-400 border-[#dcd6cb] dark:border-[#2D3137] hover:text-zinc-850 dark:hover:text-zinc-200'
-                              }`}
-                            >
-                              {col.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Recommended & Custom Tags Block */}
-                  <div className="border-t border-zinc-800 pt-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                        <Tag size={12} />
-                        <span>推荐类别标签</span>
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingPresetTags(!isEditingPresetTags)}
-                        className="text-[9px] px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-                      >
-                        {isEditingPresetTags ? '完成预设' : '编辑可用预设'}
-                      </button>
-                    </div>
-
-                    {isEditingPresetTags && (
-                      <div className="p-3 rounded-lg bg-zinc-950/40 border border-zinc-800 space-y-2">
-                        <p className="text-[9px] text-zinc-400">
-                          管理当前【{MEDIA_TYPE_LABELS[type]}】分类的快速推荐标签：
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {(categoryTags[type] || []).map(preset => (
-                            <span key={preset} className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-300 border border-zinc-800">
-                              <span>{preset}</span>
-                              <button
-                                type="button"
-                                onClick={() => deletePresetTag(preset)}
-                                className="text-red-400 hover:text-red-500 font-bold ml-1 cursor-pointer"
-                              >
-                                ✕
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex gap-2 max-w-xs">
-                          <input
-                            type="text"
-                            placeholder="新增标签名称..."
-                            value={newPresetTagInput}
-                            onChange={(e) => setNewPresetTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addPresetTag();
-                              }
-                            }}
-                            className="flex-grow text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-200 rounded px-2 py-0.5"
-                          />
-                          <button
-                            type="button"
-                            onClick={addPresetTag}
-                            className="px-2 py-0.5 text-[10px] bg-zinc-800 text-zinc-300 rounded hover:bg-zinc-700"
-                          >
-                            添加
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-1">
-                      {(categoryTags[type] || []).map(tag => {
-                        const isSelected = selectedTags.includes(tag);
-                        return (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => toggleTag(tag)}
-                            className={`px-2.5 py-1 rounded-full text-[10px] border transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-zinc-100 text-zinc-900 border-zinc-100 font-medium'
-                                : 'bg-zinc-900/40 text-zinc-400 border-zinc-800 hover:text-zinc-200'
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Manual Tags */}
-                    <div>
-                      <span className="text-[10px] text-zinc-400 block mb-1.5">自定义标签 (回车添加)</span>
-                      <div className="flex flex-wrap gap-1.5 items-center bg-zinc-900 border border-zinc-800 rounded-lg p-2">
-                        {selectedTags.filter(t => !(categoryTags[type] || []).includes(t)).map(t => (
-                          <span key={t} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                            <span>{t}</span>
-                            <button
-                              type="button"
-                              onClick={() => toggleTag(t)}
-                              className="text-[9px] hover:text-red-400 cursor-pointer"
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        ))}
-                        <input
-                          type="text"
-                          placeholder="手动输入并回车..."
-                          value={customTagInput}
-                          onChange={(e) => setCustomTagInput(e.target.value)}
-                          onKeyDown={handleAddCustomTag}
-                          className="flex-grow min-w-[120px] text-xs bg-transparent border-none text-zinc-200 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
                   </div>
                 </div>
               )}

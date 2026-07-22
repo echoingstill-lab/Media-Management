@@ -36,6 +36,7 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       fetch('/api/admin/limit')
         .then((res) => res.json())
         .then((data) => {
@@ -45,7 +46,12 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
           }
         })
         .catch(() => {});
+    } else {
+      document.body.style.overflow = '';
     }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   const handleSaveLimit = async () => {

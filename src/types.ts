@@ -45,6 +45,12 @@ export interface Collection {
   createdAt: string;
 }
 
+export interface TagDefinition {
+  id: string;
+  name: string;
+  mediaType?: MediaType | 'global'; // 'global' or undefined = standalone tag; specific MediaType = bound to that type
+}
+
 export interface CheckInHabit {
   id: string;
   name: string;

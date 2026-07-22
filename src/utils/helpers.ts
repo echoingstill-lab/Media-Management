@@ -3,7 +3,73 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MediaItem, Collection, CheckInHabit, CheckInLog, ReReadLog } from '../types';
+import { MediaItem, Collection, CheckInHabit, CheckInLog, ReReadLog, TagDefinition } from '../types';
+
+// Default system tag definitions (standalone universal tags vs bound tags)
+export const DEFAULT_TAG_DEFINITIONS: TagDefinition[] = [
+  // 通用/独立存在标签 (Global / Standalone)
+  { id: 'tag-g1', name: '治愈', mediaType: 'global' },
+  { id: 'tag-g2', name: '感人', mediaType: 'global' },
+  { id: 'tag-g3', name: '烧脑', mediaType: 'global' },
+  { id: 'tag-g4', name: '科幻', mediaType: 'global' },
+  { id: 'tag-g5', name: '神作', mediaType: 'global' },
+  { id: 'tag-g6', name: '经典', mediaType: 'global' },
+  { id: 'tag-g7', name: '娱乐', mediaType: 'global' },
+  { id: 'tag-g8', name: '学习', mediaType: 'global' },
+  { id: 'tag-g9', name: '推荐', mediaType: 'global' },
+  { id: 'tag-g10', name: '必看', mediaType: 'global' },
+  { id: 'tag-g11', name: '励志', mediaType: 'global' },
+  { id: 'tag-g12', name: '哲思', mediaType: 'global' },
+  { id: 'tag-g13', name: '硬科幻', mediaType: 'global' },
+
+  // 图书绑定 (Book bound)
+  { id: 'tag-b1', name: '纸质书', mediaType: 'book' },
+  { id: 'tag-b2', name: '电子书', mediaType: 'book' },
+  { id: 'tag-b3', name: '有声书', mediaType: 'book' },
+  { id: 'tag-b4', name: '精装存本', mediaType: 'book' },
+  { id: 'tag-b5', name: '专业工具', mediaType: 'book' },
+  { id: 'tag-b6', name: '心理社科', mediaType: 'book' },
+  { id: 'tag-b7', name: '经典文学', mediaType: 'book' },
+
+  // 电影绑定 (Movie bound)
+  { id: 'tag-m1', name: '影院观影', mediaType: 'movie' },
+  { id: 'tag-m2', name: '国产电影', mediaType: 'movie' },
+  { id: 'tag-m3', name: '日本电影', mediaType: 'movie' },
+  { id: 'tag-m4', name: '剧情佳作', mediaType: 'movie' },
+  { id: 'tag-m5', name: '文艺纪录', mediaType: 'movie' },
+
+  // 剧集绑定 (TV bound)
+  { id: 'tag-t1', name: '美剧', mediaType: 'tv' },
+  { id: 'tag-t2', name: '日韩剧', mediaType: 'tv' },
+  { id: 'tag-t3', name: '国产剧', mediaType: 'tv' },
+  { id: 'tag-t4', name: '追剧首选', mediaType: 'tv' },
+  { id: 'tag-t5', name: '情景喜剧', mediaType: 'tv' },
+
+  // 动漫绑定 (Anime bound)
+  { id: 'tag-a1', name: '高分动漫', mediaType: 'anime' },
+  { id: 'tag-a2', name: '热血冒险', mediaType: 'anime' },
+  { id: 'tag-a3', name: '青春日常', mediaType: 'anime' },
+  { id: 'tag-a4', name: '番剧', mediaType: 'anime' },
+
+  // 音乐绑定 (Music bound)
+  { id: 'tag-mu1', name: '黑胶', mediaType: 'music' },
+  { id: 'tag-mu2', name: '华语流行', mediaType: 'music' },
+  { id: 'tag-mu3', name: '摇滚先锋', mediaType: 'music' },
+  { id: 'tag-mu4', name: '古典器乐', mediaType: 'music' },
+  { id: 'tag-mu5', name: '电子氛围', mediaType: 'music' },
+
+  // 游戏绑定 (Game bound)
+  { id: 'tag-ga1', name: 'Steam', mediaType: 'game' },
+  { id: 'tag-ga2', name: 'Switch', mediaType: 'game' },
+  { id: 'tag-ga3', name: '开放世界', mediaType: 'game' },
+  { id: 'tag-ga4', name: '动作冒险', mediaType: 'game' },
+  { id: 'tag-ga5', name: '独立神作', mediaType: 'game' },
+
+  // 其他绑定 (Other bound)
+  { id: 'tag-o1', name: '播客访谈', mediaType: 'other' },
+  { id: 'tag-o2', name: '讲座展览', mediaType: 'other' },
+  { id: 'tag-o3', name: '随笔摘录', mediaType: 'other' },
+];
 
 // Compress uploaded/pasted images to save LocalStorage space
 export function compressImage(file: File, maxWidth = 400, quality = 0.7): Promise<string> {

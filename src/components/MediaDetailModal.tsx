@@ -5,12 +5,14 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square } from 'lucide-react';
-import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS } from '../types';
-import { compressImage, generateSvgCover, deduplicateLogs } from '../utils/helpers';
+import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square, Tag } from 'lucide-react';
+import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS, TagDefinition, MediaType } from '../types';
+import { compressImage, generateSvgCover, deduplicateLogs, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
 
 interface MediaDetailModalProps {
   item: MediaItem;
+  tagDefinitions?: TagDefinition[];
+  onRegisterTag?: (name: string, mediaType?: MediaType | 'global') => void;
   onUpdateItem: (updatedItem: MediaItem) => void;
   onClose: () => void;
   onEdit: () => void;
@@ -19,6 +21,8 @@ interface MediaDetailModalProps {
 
 export default function MediaDetailModal({
   item,
+  tagDefinitions,
+  onRegisterTag,
   onUpdateItem,
   onClose,
   onEdit,
@@ -27,6 +31,10 @@ export default function MediaDetailModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'note' | 'reread'>('note');
   const [fullscreenImageIndex, setFullscreenImageIndex] = useState<number | null>(null);
+
+  // Quick Tag Management state
+  const [customTagInput, setCustomTagInput] = useState('');
+  const [customTagScope, setCustomTagScope] = useState<MediaType | 'global'>(item.type);
 
   // Edit notes state
   const [rating, setRating] = useState(item.personalRating);
@@ -46,6 +54,14 @@ export default function MediaDetailModal({
   // Auto-save state for Personal Note (noteText)
   const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const isInitialNoteMount = useRef(true);
+
+  // Lock background body scroll when modal is open
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   React.useEffect(() => {
     if (isInitialNoteMount.current) {
@@ -293,17 +309,23 @@ export default function MediaDetailModal({
                   </p>
                 )}
 
-                {/* Tag Badges */}
+                {/* Clean Tag Display */}
                 {item.tags && item.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {item.tags.map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] px-2 py-0.5 bg-zinc-50 dark:bg-zinc-900 border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-500 dark:text-zinc-400 tracking-tighter"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
+                  <div className="pt-3 border-t border-[#dcd6cb]/60 dark:border-zinc-800 space-y-2">
+                    <div className="flex items-center gap-1.5 font-serif text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">
+                      <Tag size={12} className="text-[#8c7a6b] dark:text-[#a8988a]" />
+                      <span>标签</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="text-[11px] px-2.5 py-0.5 bg-[#FAF8F5] dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2d3137] text-zinc-700 dark:text-zinc-300 font-medium font-serif"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

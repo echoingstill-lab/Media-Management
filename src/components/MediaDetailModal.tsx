@@ -238,7 +238,14 @@ export default function MediaDetailModal({
 
             {/* Static Info Block */}
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-serif tracking-tight leading-tight">{item.title}</h3>
+              <div className="flex items-baseline justify-between gap-4 border-b border-zinc-150 dark:border-zinc-800 pb-2">
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-serif tracking-tight leading-tight">{item.title}</h3>
+                {item.createdAt && (
+                  <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-sans whitespace-nowrap shrink-0">
+                    {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
               
               <div className="space-y-3">
                 {item.creator && (
@@ -272,16 +279,10 @@ export default function MediaDetailModal({
             {/* Timeline Summary */}
             <div className="pt-6 border-t border-[#dcd6cb] dark:border-zinc-800 space-y-4">
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">档案摘要 / ARCHIVAL</div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">录入日期</span>
-                  <span className="text-[12px] text-zinc-600 dark:text-zinc-300">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
-                  </span>
-                </div>
-                <div className="space-y-1.5 col-span-2 sm:col-span-1">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
                   <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">当前状态</span>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-row items-center gap-1.5 w-full">
                     {/* Option 1: Bookmark / Wishlist */}
                     <button
                       onClick={() => {
@@ -292,16 +293,22 @@ export default function MediaDetailModal({
                           status: newStatus,
                           updatedAt: now,
                         };
-                        if (newStatus === 'wishlist' && !item.wishlistMonth) {
-                          updated.wishlistMonth = now.split('T')[0].substring(0, 7);
-                        }
-                        if (newStatus === undefined) {
+                        if (newStatus === 'wishlist') {
+                          if (!item.wishlistMonth) {
+                            updated.wishlistMonth = now.split('T')[0].substring(0, 7);
+                          }
+                          delete updated.startDate;
+                          delete updated.completedDate;
+                        } else {
                           delete updated.status;
+                          delete updated.wishlistMonth;
+                          delete updated.startDate;
+                          delete updated.completedDate;
                         }
                         onUpdateItem(updated);
                       }}
                       title={item.status === 'wishlist' ? "取消想看状态" : "加入想看清单 (本月)"}
-                      className={`px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 transition-all border rounded-none cursor-pointer ${
+                      className={`flex-1 py-1.5 text-[11px] font-bold flex items-center justify-center gap-1 transition-all border rounded-none cursor-pointer ${
                         item.status === 'wishlist'
                           ? 'border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold'
                           : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-750'
@@ -321,16 +328,22 @@ export default function MediaDetailModal({
                           status: newStatus,
                           updatedAt: now,
                         };
-                        if (newStatus === 'progress' && !item.startDate) {
-                          updated.startDate = now.split('T')[0];
-                        }
-                        if (newStatus === undefined) {
+                        if (newStatus === 'progress') {
+                          if (!item.startDate) {
+                            updated.startDate = now.split('T')[0];
+                          }
+                          delete updated.wishlistMonth;
+                          delete updated.completedDate;
+                        } else {
                           delete updated.status;
+                          delete updated.wishlistMonth;
+                          delete updated.startDate;
+                          delete updated.completedDate;
                         }
                         onUpdateItem(updated);
                       }}
                       title={item.status === 'progress' ? "取消进行中状态" : "标记为进行中"}
-                      className={`px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 transition-all border rounded-none cursor-pointer ${
+                      className={`flex-1 py-1.5 text-[11px] font-bold flex items-center justify-center gap-1 transition-all border rounded-none cursor-pointer ${
                         item.status === 'progress'
                           ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
                           : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-750'
@@ -350,16 +363,21 @@ export default function MediaDetailModal({
                           status: newStatus,
                           updatedAt: now,
                         };
-                        if (newStatus === 'completed' && !item.completedDate) {
-                          updated.completedDate = now.split('T')[0];
-                        }
-                        if (newStatus === undefined) {
+                        if (newStatus === 'completed') {
+                          if (!item.completedDate) {
+                            updated.completedDate = now.split('T')[0];
+                          }
+                          delete updated.wishlistMonth;
+                        } else {
                           delete updated.status;
+                          delete updated.wishlistMonth;
+                          delete updated.startDate;
+                          delete updated.completedDate;
                         }
                         onUpdateItem(updated);
                       }}
                       title={item.status === 'completed' ? "取消已完成状态" : "标记为已完成"}
-                      className={`px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 transition-all border rounded-none cursor-pointer ${
+                      className={`flex-1 py-1.5 text-[11px] font-bold flex items-center justify-center gap-1 transition-all border rounded-none cursor-pointer ${
                         item.status === 'completed'
                           ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
                           : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-750'
@@ -370,19 +388,32 @@ export default function MediaDetailModal({
                     </button>
                   </div>
                 </div>
-                {item.startDate && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">开启日期</span>
-                    <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.startDate}</span>
-                  </div>
-                )}
-                {item.completedDate && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">结案日期</span>
-                    <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.completedDate}</span>
+
+                {(item.startDate || item.completedDate) && (
+                  <div className="grid grid-cols-2 gap-4 pt-1">
+                    {item.startDate && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">开启日期</span>
+                        <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.startDate}</span>
+                      </div>
+                    )}
+                    {item.completedDate && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-zinc-400 uppercase tracking-widest block">结案日期</span>
+                        <span className="text-[12px] text-zinc-600 dark:text-zinc-300">{item.completedDate}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Recorded Date at the bottom of the Left Side List */}
+            <div className="pt-6 border-t border-[#dcd6cb]/60 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500 font-serif">
+              <span className="font-bold tracking-wider uppercase">录入于 / RECORDED</span>
+              <span className="font-sans">
+                {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+              </span>
             </div>
           </div>
 

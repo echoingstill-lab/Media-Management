@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, SquareCheck, Trophy, Award, Sparkles, Smile, Clock, Book, Film, Tv, Music, Gamepad, Compass, Ghost, Check, X } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, SquareCheck, Trophy, Award, Sparkles, Smile, Clock, Book, Film, Tv, Music, Gamepad, Compass, Ghost, Check, X, Bookmark } from 'lucide-react';
 import { CheckInHabit, CheckInLog, MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { calculateStreak } from '../utils/helpers';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,11 +78,17 @@ export default function CheckInCalendar({
   const getMediaActivitiesForDate = (date: string) => {
     const started = mediaItems.filter(item => item.startDate === date);
     const completed = mediaItems.filter(item => item.status === 'completed' && item.completedDate === date);
-    return { started, completed };
+    const wishlisted = mediaItems.filter(item => 
+      item.status !== 'completed' && 
+      item.status !== 'progress' && 
+      item.createdAt && 
+      item.createdAt.substring(0, 10) === date
+    );
+    return { started, completed, wishlisted };
   };
 
-  const { started: dayStarted, completed: dayCompleted } = getMediaActivitiesForDate(selectedDate);
-  const hasActivity = dayStarted.length > 0 || dayCompleted.length > 0;
+  const { started: dayStarted, completed: dayCompleted, wishlisted: dayWishlisted } = getMediaActivitiesForDate(selectedDate);
+  const hasActivity = dayStarted.length > 0 || dayCompleted.length > 0 || dayWishlisted.length > 0;
   const isSelectedChecked = checkInLogs.some(l => l.date === selectedDate && l.habitId === activeHabitId);
 
   const annualDays = (() => {
@@ -199,6 +205,32 @@ export default function CheckInCalendar({
                         />
                       );
                     })}
+                    {/* Media Wishlisted Activity Marker */}
+                    {(() => {
+                      const { wishlisted } = getMediaActivitiesForDate(dateStr);
+                      if (wishlisted.length === 0) return null;
+                      
+                      const colors: Record<string, string> = {
+                        'book': 'bg-blue-500 dark:bg-blue-400',
+                        'movie': 'bg-amber-500 dark:bg-amber-400',
+                        'tv': 'bg-rose-500 dark:bg-rose-400',
+                        'game': 'bg-purple-500 dark:bg-purple-400',
+                        'music': 'bg-emerald-500 dark:bg-emerald-400',
+                        'anime': 'bg-indigo-500 dark:bg-indigo-400'
+                      };
+                      
+                      // Avoid duplicate dots if the habit of this type is already checked in for the day
+                      const uniqueTypes = Array.from(new Set(wishlisted.map(item => item.type)))
+                        .filter(type => !checkInLogs.some(l => l.date === dateStr && l.habitId === type));
+                      
+                      return uniqueTypes.map(type => (
+                        <div 
+                          key={`wish-${type}`}
+                          className={`w-1.5 h-1.5 rounded-full shadow-sm ${colors[type] || 'bg-zinc-500'}`}
+                          title="有项目加入想看清单"
+                        />
+                      ));
+                    })()}
                   </div>
 
                   {/* Interactive Hover Detail Panel */}
@@ -218,10 +250,15 @@ export default function CheckInCalendar({
                         </div>
 
                         {(() => {
-                          const { started, completed } = getMediaActivitiesForDate(dateStr);
-                          if (started.length === 0 && completed.length === 0) {
+                          const { started, completed, wishlisted } = getMediaActivitiesForDate(dateStr);
+                          if (started.length === 0 && completed.length === 0 && wishlisted.length === 0) {
                             return <div className="text-[10px] text-zinc-400 italic py-2">无相关动态</div>;
                           }
+                          
+                          const progressColorClass = 'border-amber-500/15 hover:border-amber-500 bg-amber-50/20 dark:bg-amber-500/5 text-amber-600 dark:text-amber-400';
+                          const wishlistColorClass = 'border-sky-500/15 hover:border-sky-500 bg-sky-50/20 dark:bg-sky-500/5 text-sky-600 dark:text-sky-400';
+                          const completedColorClass = 'border-emerald-500/15 hover:border-emerald-500 bg-emerald-50/20 dark:bg-emerald-500/5 text-emerald-600 dark:text-emerald-400';
+
                           return (
                             <div className="space-y-4 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                               {started.length > 0 && (
@@ -230,36 +267,65 @@ export default function CheckInCalendar({
                                     <Clock size={8} /> 开始阅读/观看 (进行中)
                                   </div>
                                   <div className="space-y-1.5">
-                                    {started.map(item => (
-                                      <div 
-                                        key={item.id} 
-                                        onClick={() => onSelectItem(item.id)}
-                                        className="flex items-center gap-2 p-1.5 bg-amber-50/30 dark:bg-amber-500/5 border border-amber-500/10 hover:border-amber-500 transition-all group/item cursor-pointer"
-                                      >
-                                        <div className="shrink-0 text-amber-500 dark:text-amber-400">{getTypeIcon(item.type)}</div>
-                                        <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover/item:text-amber-600 dark:group-hover/item:text-amber-400">{item.title}</span>
-                                      </div>
-                                    ))}
+                                    {started.map(item => {
+                                      return (
+                                        <div 
+                                          key={item.id} 
+                                          onClick={() => onSelectItem(item.id)}
+                                          className={`flex items-center gap-2 p-1.5 border transition-all group/item cursor-pointer ${progressColorClass}`}
+                                        >
+                                          <div className="shrink-0">{getTypeIcon(item.type)}</div>
+                                          <span className="text-[10px] font-bold truncate">{item.title}</span>
+                                          <span className="ml-auto text-[8px] font-bold opacity-60 px-1 border border-current scale-90">在看</span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
+
+                              {wishlisted.length > 0 && (
+                                <div>
+                                  <div className="text-[9px] font-bold text-sky-500 dark:text-sky-400 uppercase tracking-tighter mb-2 flex items-center gap-1">
+                                    <Bookmark size={8} className="fill-sky-500/20" /> 新增想看清单
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {wishlisted.map(item => {
+                                      return (
+                                        <div 
+                                          key={item.id} 
+                                          onClick={() => onSelectItem(item.id)}
+                                          className={`flex items-center gap-2 p-1.5 border transition-all group/item cursor-pointer ${wishlistColorClass}`}
+                                        >
+                                          <div className="shrink-0">{getTypeIcon(item.type)}</div>
+                                          <span className="text-[10px] font-bold truncate">{item.title}</span>
+                                          <span className="ml-auto text-[8px] font-bold opacity-60 px-1 border border-current scale-90">想看</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              
                               {completed.length > 0 && (
                                 <div>
                                   <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-tighter mb-2 flex items-center gap-1">
                                     <Trophy size={8} /> 阅毕/结案
                                   </div>
                                   <div className="space-y-1.5">
-                                    {completed.map(item => (
-                                      <div 
-                                        key={item.id} 
-                                        onClick={() => onSelectItem(item.id)}
-                                        className="flex items-center gap-2 p-1.5 bg-emerald-50/30 dark:bg-emerald-500/5 border border-emerald-500/10 hover:border-emerald-500 transition-all group/item cursor-pointer"
-                                      >
-                                        <div className="shrink-0 text-emerald-500">{getTypeIcon(item.type)}</div>
-                                        <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-200 truncate group-hover/item:text-emerald-600">{item.title}</span>
-                                        <Sparkles size={8} className="ml-auto text-emerald-400" />
-                                      </div>
-                                    ))}
+                                    {completed.map(item => {
+                                      return (
+                                        <div 
+                                          key={item.id} 
+                                          onClick={() => onSelectItem(item.id)}
+                                          className={`flex items-center gap-2 p-1.5 border transition-all group/item cursor-pointer ${completedColorClass}`}
+                                        >
+                                          <div className="shrink-0">{getTypeIcon(item.type)}</div>
+                                          <span className="text-[10px] font-bold truncate">{item.title}</span>
+                                          <Sparkles size={8} className="ml-auto text-emerald-400 shrink-0" />
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}

@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square } from 'lucide-react';
+import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square, CheckCheck } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { generateSvgCover } from '../utils/helpers';
 
@@ -117,7 +117,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
         className="absolute top-3 left-3 z-45"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative flex items-center">
+        <div className="relative flex flex-col items-center w-7">
           <button
             onClick={() => setShowStatusMenu(!showStatusMenu)}
             title={
@@ -126,7 +126,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
               item.status === 'completed' ? '已看 (点击可取消/修改)' :
               '快速标记状态'
             }
-            className="flex items-center justify-center p-1 hover:scale-110 cursor-pointer bg-transparent border-none outline-none select-none transition-transform duration-200"
+            className="w-7 h-7 flex items-center justify-center hover:scale-110 cursor-pointer bg-transparent border-none outline-none select-none transition-transform duration-200"
           >
             {item.status === 'wishlist' && (
               <Bookmark size={15} strokeWidth={2.5} className="text-sky-500 dark:text-sky-400 fill-sky-500/10 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]" />
@@ -159,7 +159,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
               </div>
             )}
             {item.status === 'completed' && (
-              <Check size={16} strokeWidth={3} className="text-emerald-500 dark:text-emerald-450 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]" />
+              <CheckCheck size={16} strokeWidth={3} className="text-emerald-500 dark:text-emerald-450 filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)]" />
             )}
             {!item.status && (
               <Plus size={16} strokeWidth={2.5} className={`text-zinc-300 dark:text-zinc-450 hover:text-white dark:hover:text-white filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.8)] transition-transform duration-200 ${showStatusMenu ? 'rotate-45' : ''}`} />
@@ -173,7 +173,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.15 }}
-                className="absolute top-full mt-2 left-0 flex flex-col items-center gap-1 bg-zinc-900/95 dark:bg-[#1c1e22]/95 border border-zinc-800 dark:border-zinc-750 p-1 rounded-full shadow-lg z-[100]"
+                className="absolute top-full mt-1.5 left-0 w-7 flex flex-col items-center gap-1.5 bg-transparent p-0 border-none shadow-none z-[100]"
               >
                 {/* Option 1: 加入清单 - 默认本月 */}
                 <button
@@ -187,13 +187,13 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
                     setShowStatusMenu(false);
                   }}
                   title={item.status === 'wishlist' ? "取消想看清单" : "标记为想看清单 (本月)"}
-                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  className={`w-7 h-7 flex items-center justify-center transition-all duration-200 cursor-pointer filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)] hover:scale-125 ${
                     item.status === 'wishlist'
-                      ? 'bg-sky-500 text-white hover:bg-sky-600'
-                      : 'text-zinc-400 hover:bg-zinc-850 hover:text-sky-400'
+                      ? 'text-sky-400 scale-110'
+                      : 'text-zinc-300 hover:text-sky-400'
                   }`}
                 >
-                  <Bookmark size={11} strokeWidth={2.5} fill={item.status === 'wishlist' ? 'currentColor' : 'none'} />
+                  <Bookmark size={14} strokeWidth={3} fill={item.status === 'wishlist' ? 'currentColor' : 'none'} />
                 </button>
 
                 {/* Option 2: 进行中 */}
@@ -207,13 +207,17 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
                     setShowStatusMenu(false);
                   }}
                   title={item.status === 'progress' ? "取消在看状态" : "标记为在看状态"}
-                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  className={`group/btn w-7 h-7 flex items-center justify-center transition-all duration-200 cursor-pointer filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)] hover:scale-125 ${
                     item.status === 'progress'
-                      ? 'bg-amber-500 text-white hover:bg-amber-600'
-                      : 'text-zinc-400 hover:bg-zinc-850 hover:text-amber-400'
+                      ? 'text-amber-400 scale-110'
+                      : 'text-zinc-300 hover:text-amber-400'
                   }`}
                 >
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <div className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
+                    item.status === 'progress'
+                      ? 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]'
+                      : 'bg-zinc-300 group-hover/btn:bg-amber-400'
+                  }`} />
                 </button>
 
                 {/* Option 3: 已完成 */}
@@ -227,13 +231,13 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
                     setShowStatusMenu(false);
                   }}
                   title={item.status === 'completed' ? "取消已看状态" : "标记为已看状态"}
-                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  className={`w-7 h-7 flex items-center justify-center transition-all duration-200 cursor-pointer filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)] hover:scale-125 ${
                     item.status === 'completed'
-                      ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                      : 'text-zinc-400 hover:bg-zinc-850 hover:text-emerald-400'
+                      ? 'text-emerald-400 scale-110'
+                      : 'text-zinc-300 hover:text-emerald-400'
                   }`}
                 >
-                  <Check size={11} strokeWidth={2.5} />
+                  <CheckCheck size={14} strokeWidth={3} />
                 </button>
               </motion.div>
             )}
@@ -244,7 +248,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
       {/* Independent Re-read completion indicators */}
       {item.reReadLogs && item.reReadLogs.length > 0 && (
         <div 
-          className="absolute top-3 left-9 z-30 flex gap-1 items-center h-5 pointer-events-auto"
+          className="absolute top-3 left-12 z-30 flex gap-1.5 items-center h-7 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {item.reReadLogs.map((log, index) => (

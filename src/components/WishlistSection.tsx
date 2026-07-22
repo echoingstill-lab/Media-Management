@@ -694,9 +694,10 @@ export default function WishlistSection({
                                   {deletingItemId === item.id ? (
                                     <motion.div 
                                       key="confirm"
-                                      initial={{ opacity: 0, x: 10 }}
-                                      animate={{ opacity: 1, x: 0 }}
-                                      exit={{ opacity: 0, x: 10 }}
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      exit={{ opacity: 0 }}
+                                      transition={{ duration: 0.12, ease: "easeInOut" }}
                                       className="flex items-center gap-1 font-sans"
                                     >
                                       <button
@@ -729,6 +730,7 @@ export default function WishlistSection({
                                       initial={{ opacity: 0 }}
                                       animate={{ opacity: 1 }}
                                       exit={{ opacity: 0 }}
+                                      transition={{ duration: 0.12, ease: "easeInOut" }}
                                       className="relative group/tooltip"
                                     >
                                       <button
@@ -783,7 +785,7 @@ export default function WishlistSection({
                               <div 
                                 key={item.id}
                                 onClick={() => onSelectItem && onSelectItem(item.id)}
-                                className="group/fin group flex items-center justify-between gap-2.5 p-2 bg-white dark:bg-[#111214]/30 border border-dashed border-[#E6E0D5] dark:border-zinc-850 text-xs cursor-pointer hover:border-[#4A3B32] dark:hover:border-zinc-400 transition-all"
+                                className="group/fin group flex items-center justify-between gap-2.5 p-2 bg-white dark:bg-[#111214]/30 border border-dashed border-zinc-300 dark:border-zinc-800/60 text-xs cursor-pointer hover:border-zinc-400 dark:hover:border-zinc-700 transition-all"
                                 title="点击查看媒体详情"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0 flex-grow">
@@ -819,9 +821,10 @@ export default function WishlistSection({
                                     {deletingItemId === item.id ? (
                                       <motion.div 
                                         key="confirm-fin"
-                                        initial={{ opacity: 0, x: 10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 10 }}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.12, ease: "easeInOut" }}
                                         className="flex items-center gap-1 font-sans"
                                       >
                                         <button
@@ -854,6 +857,7 @@ export default function WishlistSection({
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.12, ease: "easeInOut" }}
                                         className="relative group/tooltip opacity-0 group-hover/fin:opacity-100 transition-opacity font-sans"
                                       >
                                         <button

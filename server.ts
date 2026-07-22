@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import type { Request } from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
@@ -57,6 +58,12 @@ let isFirestoreAvailable = true;
 
 // Dynamic daily limit (default 50)
 let customDailyLimit = parseInt(process.env.AI_DAILY_LIMIT || "50", 10);
+const adminToken = (process.env.ADMIN_TOKEN || "").trim();
+
+function isAdminRequest(req: Request): boolean {
+  if (!adminToken) return false;
+  return req.get("x-admin-token") === adminToken;
+}
 
 // Admin limit management endpoints
 app.get("/api/admin/limit", (req, res) => {
@@ -64,6 +71,14 @@ app.get("/api/admin/limit", (req, res) => {
 });
 
 app.post("/api/admin/limit", (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(403).json({
+      error: adminToken
+        ? "Admin token is required to change the shared daily limit."
+        : "ADMIN_TOKEN is not configured on the server.",
+    });
+  }
+
   const { limit } = req.body;
   if (typeof limit === "number" && limit >= 1) {
     customDailyLimit = Math.floor(limit);
@@ -189,7 +204,8 @@ function sanitizeParseResult(resultText: string): { data?: any; error?: string }
 // API: Parse Book/Movie/Anime/Music links or titles using Gemini + Search Grounding
 app.post("/api/parse-link", async (req, res) => {
   try {
-    const { url, userApiKey, provider, baseUrl, model, clientId, isAdmin } = req.body;
+    const { url, userApiKey, provider, baseUrl, model, clientId } = req.body;
+    const hasAdminAccess = isAdminRequest(req);
     if (!url || typeof url !== "string") {
       return res.status(400).json({ error: "Please provide a valid URL or title." });
     }
@@ -197,14 +213,14 @@ app.post("/api/parse-link", async (req, res) => {
     // Usage check for shared key (public mode)
     let usageInfo = { allowed: true, remaining: 999 };
     if (!userApiKey) {
-      if (isAdmin) {
+      if (hasAdminAccess) {
         // Admin mode gets unlimited parse usage
         usageInfo = { allowed: true, remaining: 9999 };
       } else {
         usageInfo = await checkUsage(clientId || req.ip || "anonymous");
         if (!usageInfo.allowed) {
           return res.status(429).json({ 
-            error: `今日 AI 解析次数已达上限（${customDailyLimit}次）。管理员登录或在设置中配置个人 API KEY 可不受限制。` 
+            error: `今日 AI 解析次数已达上限（${customDailyLimit}次）。配置个人 API Key 或使用服务器管理员令牌可不受限制。` 
           });
         }
       }

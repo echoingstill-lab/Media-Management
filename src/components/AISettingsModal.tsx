@@ -29,6 +29,7 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
   const [currentLimit, setCurrentLimit] = useState<number>(50);
   const [newLimitInput, setNewLimitInput] = useState<string>('50');
   const [limitMsg, setLimitMsg] = useState<string>('');
+  const [adminTokenInput, setAdminTokenInput] = useState<string>(() => sessionStorage.getItem('admin_token') || '');
 
   useEffect(() => {
     localStorage.setItem('ai_settings', JSON.stringify(settings));
@@ -57,13 +58,21 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
   const handleSaveLimit = async () => {
     const num = parseInt(newLimitInput, 10);
     if (isNaN(num) || num < 1) {
-      setLimitMsg('⚠️ 请输入有效的整无限额数字');
+      setLimitMsg('⚠️ 请输入有效的每日限额数字');
+      return;
+    }
+    if (!adminTokenInput.trim()) {
+      setLimitMsg('⚠️ 请先输入服务器管理员令牌');
       return;
     }
     try {
+      sessionStorage.setItem('admin_token', adminTokenInput.trim());
       const res = await fetch('/api/admin/limit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': adminTokenInput.trim(),
+        },
         body: JSON.stringify({ limit: num }),
       });
       const data = await res.json();
@@ -75,6 +84,16 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
       }
     } catch (err: any) {
       setLimitMsg('⚠️ 无法连接到服务器');
+    }
+  };
+
+  const handleAdminTokenChange = (value: string) => {
+    setAdminTokenInput(value);
+    const trimmed = value.trim();
+    if (trimmed) {
+      sessionStorage.setItem('admin_token', trimmed);
+    } else {
+      sessionStorage.removeItem('admin_token');
     }
   };
 
@@ -218,13 +237,26 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
                     👑 管理员权限控制台
                   </span>
                   <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 border border-amber-500/30 font-mono">
-                    无限解析特权已生效
+                    需要服务器令牌
                   </span>
                 </div>
                 
                 <p className="text-[10.5px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  管理员模式下使用公共模式进行解析不受任何次数限制。您可以在下方实时调整非管理员用户的公共模式每日解析限额。
+                  管理员页面只负责显示入口；修改限额和无限解析必须同时提供服务器 ADMIN_TOKEN。
                 </p>
+
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block font-bold">
+                    服务器管理员令牌
+                  </label>
+                  <input
+                    type="password"
+                    value={adminTokenInput}
+                    onChange={(e) => handleAdminTokenChange(e.target.value)}
+                    placeholder="输入部署环境中的 ADMIN_TOKEN"
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                  />
+                </div>
 
                 <div className="space-y-1.5 pt-1">
                   <label className="text-[10px] text-zinc-500 uppercase tracking-wider block font-bold">
@@ -260,10 +292,10 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
               <Info size={16} className="text-amber-600 dark:text-amber-500 shrink-0" />
               <div className="text-[10px] text-amber-800 dark:text-amber-400 leading-relaxed font-serif">
                 {isAdmin 
-                  ? `您当前处于管理员模式，AI 解析完全无限制。公共用户的每日共享解析限额为 ${currentLimit} 次/天。`
+                  ? `管理员操作需要服务器 ADMIN_TOKEN。公共用户的每日共享解析限额为 ${currentLimit} 次/天。`
                   : settings.useCustomKey 
                   ? "配置自有 API 后将不再受公共模式的每日限额限制。"
-                  : `公共模式每日限额为 ${currentLimit} 次/天，管理员模式或自有 API Key 可不受限制。`}
+                  : `公共模式每日限额为 ${currentLimit} 次/天；配置自有 API Key 可不受限制。`}
               </div>
             </div>
           </div>

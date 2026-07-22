@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Shield, Key, User, ArrowRight, BookOpen, Sparkles, SquareCheck } from 'lucide-react';
+import { Key, User, ArrowRight, SquareCheck } from 'lucide-react';
 
 interface LoginViewProps {
   onLogin: (username: string, isAdmin?: boolean) => void;
@@ -19,10 +19,10 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Simple local mock user DB in localStorage to make login fully functional and persistent!
+  // Local-only account storage keeps this prototype usable until real auth is added.
   const getStoredUsers = (): Record<string, string> => {
     const data = localStorage.getItem('media_management_users');
-    return data ? JSON.parse(data) : { 'admin': 'admin123' }; // Default admin user
+    return data ? JSON.parse(data) : {};
   };
 
   const saveUser = (user: string, pass: string) => {
@@ -46,9 +46,9 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
     if (mode === 'admin') {
       // Admin login validation
-      const storedPass = users[normalizedUser] || 'admin123';
-      if (password !== storedPass && password !== 'admin123') {
-        setError('管理员密码错误 (默认账号: admin 密码: admin123)');
+      const storedPass = users[normalizedUser];
+      if (normalizedUser !== 'admin' || !storedPass || password !== storedPass) {
+        setError('管理员账号不存在或密码错误。请先注册 admin 账号，正式版将接入服务端鉴权。');
         return;
       }
       setSuccessMsg('管理员验证成功！正在以管理员特权身份登录...');
@@ -75,20 +75,12 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
     } else {
       const storedPass = users[normalizedUser];
       if (!storedPass || storedPass !== password) {
-        setError('用户名或密码错误 (默认账号: admin 密码: admin123)');
+        setError('用户名或密码错误');
         return;
       }
       const isAdminUser = normalizedUser === 'admin';
       onLogin(username.trim(), isAdminUser);
     }
-  };
-
-  const handleQuickAdminLogin = () => {
-    setError('');
-    setSuccessMsg('以管理员身份登录成功！');
-    setTimeout(() => {
-      onLogin('admin', true);
-    }, 400);
   };
 
   const handleGuestLogin = () => {
@@ -165,7 +157,6 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                 setMode('admin'); 
                 setError(''); 
                 if (!username) setUsername('admin');
-                if (!password) setPassword('admin123');
               }}
               className={`flex-1 pb-3 text-xs tracking-wider font-bold transition-all border-b-2 rounded-none font-serif flex items-center justify-center gap-1 ${
                 mode === 'admin' 
@@ -183,7 +174,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                 <span>👑 管理员模式特权激活说明</span>
               </div>
               <p className="opacity-90">
-                以管理员模式登录后，可享用无限额 AI 智能文本与链接解析，并可在设置面板中动态修改全局每日解析限额。
+                当前管理员账号仍为本地原型登录。修改全局限额和无限解析需要在 AI 设置中输入服务器 ADMIN_TOKEN。
               </p>
             </div>
           )}
@@ -217,7 +208,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={mode === 'admin' ? "默认管理员账号: admin" : "请输入用户名..."}
+                  placeholder={mode === 'admin' ? "管理员账号: admin" : "请输入用户名..."}
                   className={`w-full text-xs pl-9 pr-4 py-3 rounded-none border focus:outline-none transition-all ${
                     darkMode 
                       ? 'bg-[#15171a] border-[#2e3238] focus:border-zinc-600 text-[#e3e4e6]' 
@@ -239,7 +230,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'admin' ? "默认密码: admin123" : "请输入密码..."}
+                  placeholder="请输入密码..."
                   className={`w-full text-xs pl-9 pr-4 py-3 rounded-none border focus:outline-none transition-all ${
                     darkMode 
                       ? 'bg-[#15171a] border-[#2e3238] focus:border-zinc-600 text-[#e3e4e6]' 
@@ -290,16 +281,8 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           </button>
         </form>
 
-        {/* Divider and Quick Admin access */}
+        {/* Divider and Guest access */}
         <div className="space-y-3 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10">
-
-          <button
-            type="button"
-            onClick={handleQuickAdminLogin}
-            className="w-full py-2.5 text-xs font-bold tracking-wider border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all rounded-none cursor-pointer flex items-center justify-center gap-1.5 font-serif"
-          >
-            <span>⚡ 管理员模式极速入口 (随意使用解析/修改限额)</span>
-          </button>
 
           <button
             type="button"
@@ -314,7 +297,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           </button>
           
           <p className="text-[9.5px] text-center opacity-40 font-serif leading-relaxed">
-            数据默认持久化于本地浏览器缓存，注册的账号密码同样保存在本设备的加密隔离沙盒中。未来升级云服务时，可一键导入并多端同步。
+            数据默认持久化于本地浏览器缓存，注册账号也仅用于当前设备原型体验。正式版将接入服务端账号与同步能力。
           </p>
         </div>
 

@@ -56,6 +56,21 @@ npm run build
 npm start
 ```
 
+### 4. 环境变量
+
+复制 `.env.example` 到 `.env` 后按需配置：
+
+```bash
+GEMINI_API_KEY="..."
+DEEPSEEK_API_KEY="..."
+SILICONFLOW_API_KEY="..."
+AI_DAILY_LIMIT="50"
+ADMIN_TOKEN="..."
+APP_URL="..."
+```
+
+`ADMIN_TOKEN` 用于保护管理员限额接口和公共 AI 解析的管理员豁免权限。正式部署前请设置为高强度随机字符串，并只通过服务器环境变量保存。
+
 ---
 
 ## 🚀 部署至 Vercel (Vercel Deployment)

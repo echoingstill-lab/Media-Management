@@ -165,19 +165,21 @@ export default function MediaEditModal({
       const aiSettingsRaw = localStorage.getItem('ai_settings');
       const aiSettings = aiSettingsRaw ? JSON.parse(aiSettingsRaw) : null;
       const clientId = localStorage.getItem('media_archive_client_id');
-      const isAdmin = localStorage.getItem('media_management_is_admin') === 'true';
+      const adminToken = sessionStorage.getItem('admin_token') || '';
 
       const res = await fetch('/api/parse-link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken.trim() ? { 'x-admin-token': adminToken.trim() } : {}),
+        },
         body: JSON.stringify({ 
           url: linkInput.trim(),
           userApiKey: aiSettings?.useCustomKey ? aiSettings.userApiKey : undefined,
           provider: aiSettings?.useCustomKey ? aiSettings.provider : undefined,
           baseUrl: aiSettings?.useCustomKey ? aiSettings.baseUrl : undefined,
           model: aiSettings?.useCustomKey ? aiSettings.model : undefined,
-          clientId: clientId,
-          isAdmin: isAdmin
+          clientId: clientId
         }),
       });
 

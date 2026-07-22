@@ -290,15 +290,22 @@ export default function MediaEditModal({
           <div className="p-4 rounded-none bg-white/55 dark:bg-zinc-950/50 border border-[#dcd6cb] dark:border-[#2D3137] space-y-2.5">
               <div className="flex items-center gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                 <Sparkles size={14} className="text-amber-500 dark:text-amber-400 animate-pulse" />
-                <span>输入链接或标题极速识别</span>
+                <span>输入链接或标题解析</span>
               </div>
               <p className="text-[10.5px] text-zinc-550 dark:text-zinc-400 leading-normal font-serif">
-                支持维基百科、IMDb、豆瓣、百度百科、新浪、Bangumi 等任何详情页链接，或直接输入作品标题：
+                推荐使用豆瓣、IMDb、Steam、Apple Music、网易云音乐、维基百科链接。其他页面可尝试解析，失败后请手动补全。
               </p>
+              <div className="flex flex-wrap gap-1.5 text-[9.5px] text-zinc-500 dark:text-zinc-400">
+                {['豆瓣', 'IMDb', 'Steam', 'Apple Music', '网易云音乐', '维基百科'].map(site => (
+                  <span key={site} className="px-2 py-0.5 border border-[#dcd6cb] dark:border-[#2D3137] bg-white/70 dark:bg-zinc-900/60">
+                    {site}
+                  </span>
+                ))}
+              </div>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="粘贴网址链接，或直接输入书影音名称 (如《百年孤独》)"
+                  placeholder="粘贴推荐站点链接，或直接输入书影音名称"
                   value={linkInput}
                   onChange={(e) => setLinkInput(e.target.value)}
                   onKeyDown={(e) => {

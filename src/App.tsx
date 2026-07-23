@@ -46,6 +46,34 @@ function getOnboardingKey(username: string | null): string {
   return `media_management_onboarding_completed_${normalized}`;
 }
 
+function normalizeMediaCoverUrl(url: string): string {
+  return url
+    .replace('/s_ratio_poster/', '/l_ratio_poster/')
+    .replace('/mpic/', '/lpic/')
+    .replace('/spic/', '/lpic/');
+}
+
+function normalizeLegacyMediaItem(item: MediaItem): MediaItem {
+  const title = (item.title || '').trim();
+  const titleParts = title.split(/\s+\/\s+/).map(part => part.trim()).filter(Boolean);
+  const normalizedTitleFields = !item.originalTitle && titleParts.length >= 2
+    ? {
+        title: titleParts[0],
+        originalTitle: titleParts.slice(1).join(' / '),
+      }
+    : {};
+
+  return {
+    ...item,
+    ...normalizedTitleFields,
+    coverUrl: item.coverUrl ? normalizeMediaCoverUrl(item.coverUrl) : item.coverUrl,
+  };
+}
+
+function normalizeMediaItems(items: MediaItem[]): MediaItem[] {
+  return items.map(normalizeLegacyMediaItem);
+}
+
 export default function App() {
   // Helper for user-scoped storage key
   const getStorageKey = (keyType: 'items' | 'collections' | 'logs' | 'tags', username: string | null, isAdminUser: boolean) => {
@@ -108,11 +136,11 @@ export default function App() {
     if (!initialUser || initialUser === 'Guest') return [];
     if (initialAdmin) {
       const saved = localStorage.getItem('media_archive_items_admin') || localStorage.getItem('media_archive_items');
-      return saved ? JSON.parse(saved) : DEFAULT_MEDIA_ITEMS;
+      return saved ? normalizeMediaItems(JSON.parse(saved)) : DEFAULT_MEDIA_ITEMS;
     } else {
       const userKey = `media_archive_items_user_${initialUser.toLowerCase()}`;
       const saved = localStorage.getItem(userKey);
-      return saved ? JSON.parse(saved) : [];
+      return saved ? normalizeMediaItems(JSON.parse(saved)) : [];
     }
   });
 
@@ -185,7 +213,7 @@ export default function App() {
     // Load items
     const savedItems = localStorage.getItem(itemKey) || (isAdm ? localStorage.getItem('media_archive_items') : null);
     if (savedItems) {
-      try { setMediaItems(JSON.parse(savedItems)); } catch { setMediaItems(isAdm ? DEFAULT_MEDIA_ITEMS : []); }
+      try { setMediaItems(normalizeMediaItems(JSON.parse(savedItems))); } catch { setMediaItems(isAdm ? DEFAULT_MEDIA_ITEMS : []); }
     } else {
       setMediaItems(isAdm ? DEFAULT_MEDIA_ITEMS : []);
     }
@@ -314,6 +342,7 @@ export default function App() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<MediaItem['status'] | 'all'>('all');
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | 'all'>('all');
+  const [visibleArchiveCount, setVisibleArchiveCount] = useState(80);
   const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
 
   // --- Modal Popups Trigger State ---
@@ -387,7 +416,7 @@ export default function App() {
   };
 
   const applyCloudPayload = (payload: Partial<CloudPayload>) => {
-    if (Array.isArray(payload.mediaItems)) setMediaItems(payload.mediaItems);
+    if (Array.isArray(payload.mediaItems)) setMediaItems(normalizeMediaItems(payload.mediaItems));
     if (Array.isArray(payload.collections)) setCollections(payload.collections);
     if (Array.isArray(payload.habits)) setHabits(payload.habits);
     if (Array.isArray(payload.checkInLogs)) setCheckInLogs(payload.checkInLogs);
@@ -902,7 +931,7 @@ export default function App() {
     checkInLogs: CheckInLog[];
     tagDefinitions?: TagDefinition[];
   }) => {
-    if (data.mediaItems) setMediaItems(data.mediaItems);
+    if (data.mediaItems) setMediaItems(normalizeMediaItems(data.mediaItems));
     if (data.collections) setCollections(data.collections);
     if (data.habits) setHabits(data.habits);
     if (data.checkInLogs) setCheckInLogs(data.checkInLogs);
@@ -994,10 +1023,12 @@ export default function App() {
   // --- Filters Pipeline ---
   const filteredItems = mediaItems
     .filter(item => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+        item.title.toLowerCase().includes(q) ||
+        (item.originalTitle || '').toLowerCase().includes(q) ||
+        item.creator.toLowerCase().includes(q) ||
+        item.tags.some(t => t.toLowerCase().includes(q));
 
       const matchesType = selectedTypeFilter === 'all' || item.type === selectedTypeFilter;
       const matchesStatus = selectedStatusFilter === 'all' || item.status === selectedStatusFilter;
@@ -1020,6 +1051,12 @@ export default function App() {
       
       return idxA - idxB;
     });
+
+  useEffect(() => {
+    setVisibleArchiveCount(80);
+  }, [searchQuery, selectedTypeFilter, selectedStatusFilter, selectedCollectionFilter, selectedTagFilter]);
+
+  const visibleFilteredItems = filteredItems.slice(0, visibleArchiveCount);
 
   const activeMediaDetail = mediaItems.find(itm => itm.id === activeMediaDetailId);
 
@@ -1503,8 +1540,21 @@ export default function App() {
 
             {/* Unified grid display of media records */}
             {filteredItems.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 mt-4">
-                {filteredItems.map(item => (
+              <div className="space-y-5 mt-4">
+                <div className="flex items-center justify-between text-[11px] text-zinc-400 font-serif">
+                  <span>已显示 {visibleFilteredItems.length} / {filteredItems.length} 项</span>
+                  {filteredItems.length > visibleFilteredItems.length && (
+                    <button
+                      onClick={() => setVisibleArchiveCount(prev => prev + 80)}
+                      className="px-3 py-1 border border-zinc-800 text-zinc-300 hover:text-[#DDDAC4] hover:border-[#DDDAC4] transition-colors"
+                    >
+                      加载更多
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+                {visibleFilteredItems.map(item => (
                   <MediaCard
                     key={item.id}
                     item={item}
@@ -1540,6 +1590,7 @@ export default function App() {
                     }}
                   />
                 ))}
+                </div>
               </div>
             ) : (
               <div className="p-16 border border-dashed border-zinc-300 dark:border-zinc-800 text-center space-y-4 rounded-none">

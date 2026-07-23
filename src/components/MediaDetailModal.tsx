@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square, Tag } from 'lucide-react';
+import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square, Tag, ExternalLink } from 'lucide-react';
 import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS, TagDefinition, MediaType } from '../types';
 import { compressImage, generateSvgCover, deduplicateLogs, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
 
@@ -295,7 +295,12 @@ export default function MediaDetailModal({
                   </span>
                 )}
               </div>
-              
+              {item.originalTitle && (
+                <div className="text-[12px] text-zinc-500 dark:text-zinc-400 font-serif italic -mt-2">
+                  原名：{item.originalTitle}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {item.creator && (
                   <div className="text-[13px] text-zinc-500 dark:text-zinc-400 font-serif font-bold uppercase tracking-wider">
@@ -307,6 +312,18 @@ export default function MediaDetailModal({
                   <p className="text-[12px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-serif opacity-90 max-w-2xl italic">
                     {item.description}
                   </p>
+                )}
+
+                {item.sourceUrl && (
+                  <a
+                    href={item.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#4A3B32] dark:text-[#DDDAC4] hover:underline"
+                  >
+                    <ExternalLink size={12} />
+                    <span>来源链接</span>
+                  </a>
                 )}
 
                 {/* Clean Tag Display */}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         媒体管理 - 豆瓣导出 CSV
 // @namespace    https://media-management.local/
-// @version      0.2.0
+// @version      0.3.0
 // @description  从豆瓣个人书影音页面导出 CSV，用于导入媒体管理。
 // @match        *://*.douban.com/*
 // @run-at       document-idle
@@ -69,6 +69,26 @@
     return match ? match[0] : text;
   }
 
+  function normalizeImageUrl(url) {
+    if (!url) return '';
+    return url.replace('/s_ratio_poster/', '/l_ratio_poster/')
+      .replace('/mpic/', '/lpic/')
+      .replace('/spic/', '/lpic/');
+  }
+
+  function parseTitleParts(text, imgEl) {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    const imgAlt = imgEl?.getAttribute('alt')?.trim() || '';
+    if (!raw) return { title: imgAlt, originalTitle: '' };
+
+    const parts = raw.split(/\s+\/\s+/).map(part => part.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      return { title: parts[0], originalTitle: parts.slice(1).join(' / ') };
+    }
+
+    return { title: raw || imgAlt, originalTitle: imgAlt && imgAlt !== raw ? imgAlt : '' };
+  }
+
   function parseOneItem(item, pageUrl) {
     const linkEl =
       item.querySelector('.title a') ||
@@ -76,14 +96,15 @@
       item.querySelector('.info a') ||
       item.querySelector('a[href*="/subject/"]');
 
-    const title =
+    const imgEl = item.querySelector('img');
+    const titleText =
       getText(linkEl) ||
       getText(item.querySelector('.title')) ||
       getText(item.querySelector('h2'));
 
+    const { title, originalTitle } = parseTitleParts(titleText, imgEl);
     const link = linkEl ? new URL(linkEl.href, pageUrl).href : '';
-    const imgEl = item.querySelector('img');
-    const cover = imgEl?.getAttribute('data-original') || imgEl?.src || '';
+    const cover = normalizeImageUrl(imgEl?.getAttribute('data-original') || imgEl?.src || '');
 
     const intro =
       getText(item.querySelector('.intro')) ||
@@ -97,6 +118,7 @@
 
     return {
       title,
+      originalTitle,
       type: getMediaType(pageUrl),
       status: getStatus(pageUrl),
       rating: parseRating(item),
@@ -134,6 +156,7 @@
   function toCsv(rows) {
     const headers = [
       'title',
+      'originalTitle',
       'type',
       'status',
       'rating',

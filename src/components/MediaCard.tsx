@@ -56,6 +56,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
             alt={item.title}
             referrerPolicy="no-referrer"
             loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
             onError={(e) => {
               e.currentTarget.src = generateSvgCover(item.title, item.creator || '佚名', item.type);
@@ -72,6 +73,11 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
           <h4 className="text-white font-bold text-[13px] line-clamp-1 leading-snug tracking-tight font-serif">
             {item.title}
           </h4>
+          {item.originalTitle && (
+            <div className="text-[10px] text-zinc-300/80 line-clamp-1 font-serif italic mt-0.5">
+              {item.originalTitle}
+            </div>
+          )}
 
           {/* Creator & Media Type Icon */}
           <div className="flex items-center justify-between mt-1.5 text-xs text-zinc-400">

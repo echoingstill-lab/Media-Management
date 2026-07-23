@@ -14,10 +14,12 @@ export interface ReReadLog {
 export interface MediaItem {
   id: string;
   title: string;
+  originalTitle?: string;
   type: MediaType;
   creator: string; // Author, Director, Studio, etc.
   coverUrl: string;
   description: string;
+  sourceUrl?: string;
   status?: 'wishlist' | 'progress' | 'completed'; // 想看/在看/已看 (可选，未标注)
   progressText?: string; // e.g. "第 5 章", "12/24集"
   startDate?: string;

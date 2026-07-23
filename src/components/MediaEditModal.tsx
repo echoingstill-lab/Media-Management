@@ -30,6 +30,7 @@ export default function MediaEditModal({
   onClose,
 }: MediaEditModalProps) {
   const [title, setTitle] = useState('');
+  const [originalTitle, setOriginalTitle] = useState('');
   const [type, setType] = useState<MediaType>('book');
   const [creator, setCreator] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
@@ -119,6 +120,7 @@ export default function MediaEditModal({
   useEffect(() => {
     if (item) {
       setTitle(item.title);
+      setOriginalTitle(item.originalTitle || '');
       setType(item.type);
       setCreator(item.creator || '');
       setCoverUrl(item.coverUrl || '');
@@ -136,6 +138,7 @@ export default function MediaEditModal({
     } else {
       // Clear fields for new item
       setTitle('');
+      setOriginalTitle('');
       setType('book');
       setCreator('');
       setCoverUrl('');
@@ -192,6 +195,7 @@ export default function MediaEditModal({
 
       const media = data.data;
       setTitle(media.title || '');
+      setOriginalTitle(media.originalTitle || '');
       setType(media.type || 'book');
       setCreator(media.creator || '');
       setCoverUrl(media.coverUrl || '');
@@ -247,10 +251,12 @@ export default function MediaEditModal({
     onSave({
       id: item?.id,
       title: title.trim(),
+      originalTitle: originalTitle.trim() || undefined,
       type,
       creator: creator.trim(),
       coverUrl: finalCover,
       description: description.trim(),
+      sourceUrl: item?.sourceUrl,
       status,
       progressText: status === 'progress' ? progressText.trim() : '',
       startDate: startDate || undefined,
@@ -575,6 +581,17 @@ export default function MediaEditModal({
                       placeholder="例如: 银翼杀手 2049"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
+                      className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-100 rounded-none px-3 py-2.5 focus:outline-none focus:border-[#635C56]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1 font-semibold">原名 / 外文名</label>
+                    <input
+                      type="text"
+                      placeholder="例如: Inception"
+                      value={originalTitle}
+                      onChange={(e) => setOriginalTitle(e.target.value)}
                       className="w-full text-xs bg-white dark:bg-[#111214] border border-[#dcd6cb] dark:border-[#2D3137] text-zinc-900 dark:text-zinc-100 rounded-none px-3 py-2.5 focus:outline-none focus:border-[#635C56]"
                     />
                   </div>

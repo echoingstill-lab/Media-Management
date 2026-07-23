@@ -37,8 +37,10 @@ interface DataManagementProps {
 interface ParsedImportRow {
   id: string;
   title: string;
+  originalTitle?: string;
   type: MediaType;
   creator: string;
+  description?: string;
   coverUrl?: string;
   sourceUrl?: string;
   completedDate?: string;
@@ -48,6 +50,29 @@ interface ParsedImportRow {
   tags: string[];
   isValid: boolean;
   selected: boolean;
+}
+
+function splitImportedTitle(rawTitle: string, rawOriginalTitle = ''): { title: string; originalTitle: string } {
+  const explicitOriginal = rawOriginalTitle.trim();
+  const parts = rawTitle.split(/\s+\/\s+/).map(part => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return {
+      title: parts[0],
+      originalTitle: explicitOriginal || parts.slice(1).join(' / '),
+    };
+  }
+  return {
+    title: rawTitle.trim(),
+    originalTitle: explicitOriginal,
+  };
+}
+
+function normalizeImportedCoverUrl(url: string): string {
+  return url
+    .trim()
+    .replace('/s_ratio_poster/', '/l_ratio_poster/')
+    .replace('/mpic/', '/lpic/')
+    .replace('/spic/', '/lpic/');
 }
 
 export default function DataManagement({
@@ -198,7 +223,12 @@ export default function DataManagement({
           for (let i = 0; i < text.length; i++) {
             const char = text[i];
             if (char === '"') {
-              inQuotes = !inQuotes;
+              if (inQuotes && text[i + 1] === '"') {
+                current += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
             } else if (char === delimiter && !inQuotes) {
               result.push(current.trim());
               current = '';
@@ -211,20 +241,22 @@ export default function DataManagement({
         };
 
         const headers = splitCSVLine(lines[0]);
+        const normalizedHeaders = headers.map(h => h.toLowerCase());
         const cleanCell = (value: string | undefined) => (value || '').replace(/^"|"$/g, '').trim();
         
         // Find indices
-        const titleIndex = headers.findIndex(h => h.includes('标题') || h.includes('title') || h.includes('name') || h.includes('名称'));
-        const ratingIndex = headers.findIndex(h => h.includes('评分') || h.includes('rating') || h.includes('star') || h.includes('星级'));
-        const noteIndex = headers.findIndex(h => h.includes('短评') || h.includes('附言') || h.includes('comment') || h.includes('note') || h.includes('我的评价'));
-        const creatorIndex = headers.findIndex(h => h.includes('导演') || h.includes('作者') || h.includes('creator') || h.includes('author') || h.includes('director') || h.includes('制作'));
-        const typeIndex = headers.findIndex(h => h.includes('类型') || h.includes('type') || h.includes('分类'));
-        const tagsIndex = headers.findIndex(h => h.includes('标签') || h.includes('tag') || h.includes('label'));
-        const statusIndex = headers.findIndex(h => h.includes('状态') || h.includes('status'));
-        const dateIndex = headers.findIndex(h => h.includes('标记日期') || h.includes('完成日期') || h.includes('markeddate') || h.includes('marked_date') || h.includes('date'));
-        const linkIndex = headers.findIndex(h => h === 'link' || h.includes('链接') || h.includes('豆瓣') || h.includes('url'));
-        const coverIndex = headers.findIndex(h => h.includes('封面') || h.includes('cover'));
-        const introIndex = headers.findIndex(h => h.includes('简介') || h.includes('摘要') || h.includes('intro'));
+        const titleIndex = normalizedHeaders.findIndex(h => h.includes('标题') || h.includes('title') || h.includes('name') || h.includes('名称'));
+        const originalTitleIndex = normalizedHeaders.findIndex(h => h.includes('原名') || h.includes('原始标题') || h.includes('originaltitle') || h.includes('original_title') || h.includes('original'));
+        const ratingIndex = normalizedHeaders.findIndex(h => h.includes('评分') || h.includes('rating') || h.includes('star') || h.includes('星级'));
+        const noteIndex = normalizedHeaders.findIndex(h => h.includes('短评') || h.includes('附言') || h.includes('comment') || h.includes('note') || h.includes('我的评价'));
+        const creatorIndex = normalizedHeaders.findIndex(h => h.includes('导演') || h.includes('作者') || h.includes('creator') || h.includes('author') || h.includes('director') || h.includes('制作'));
+        const typeIndex = normalizedHeaders.findIndex(h => h.includes('类型') || h.includes('type') || h.includes('分类'));
+        const tagsIndex = normalizedHeaders.findIndex(h => h.includes('标签') || h.includes('tag') || h.includes('label'));
+        const statusIndex = normalizedHeaders.findIndex(h => h.includes('状态') || h.includes('status'));
+        const dateIndex = normalizedHeaders.findIndex(h => h.includes('标记日期') || h.includes('完成日期') || h.includes('markeddate') || h.includes('marked_date') || h.includes('date'));
+        const linkIndex = normalizedHeaders.findIndex(h => h === 'link' || h.includes('链接') || h.includes('豆瓣') || h.includes('url'));
+        const coverIndex = normalizedHeaders.findIndex(h => h.includes('封面') || h.includes('cover'));
+        const introIndex = normalizedHeaders.findIndex(h => h.includes('简介') || h.includes('摘要') || h.includes('intro'));
 
         // Skip header line
         for (let i = 1; i < lines.length; i++) {
@@ -237,13 +269,15 @@ export default function DataManagement({
           // Resolve Title (Fallback to first non-empty column)
           const rawTitle = titleIndex !== -1 ? cols[titleIndex] : cols[0];
           const cleanTitle = cleanCell(rawTitle);
+          const explicitOriginalTitle = originalTitleIndex !== -1 ? cleanCell(cols[originalTitleIndex]) : '';
+          const titleParts = splitImportedTitle(cleanTitle, explicitOriginalTitle);
 
           if (!cleanTitle) continue;
 
           // Resolve Creator
           const cleanCreator = creatorIndex !== -1 ? cleanCell(cols[creatorIndex]) : '';
           const sourceUrl = linkIndex !== -1 ? cleanCell(cols[linkIndex]) : '';
-          const coverUrl = coverIndex !== -1 ? cleanCell(cols[coverIndex]) : '';
+          const coverUrl = coverIndex !== -1 ? normalizeImportedCoverUrl(cleanCell(cols[coverIndex])) : '';
           const completedDate = dateIndex !== -1 ? cleanCell(cols[dateIndex]) : '';
           const introText = introIndex !== -1 ? cleanCell(cols[introIndex]) : '';
 
@@ -310,14 +344,16 @@ export default function DataManagement({
 
           rows.push({
             id: `row-${i}-${Date.now()}`,
-            title: cleanTitle,
+            title: titleParts.title,
+            originalTitle: titleParts.originalTitle,
             type: parsedType,
             creator: cleanCreator,
+            description: introText,
             coverUrl,
             sourceUrl,
             completedDate,
             personalRating: rating,
-            personalNote: cleanNote || introText,
+            personalNote: cleanNote,
             status: parsedStatus,
             tags: parsedTags,
             isValid: true,
@@ -418,12 +454,12 @@ export default function DataManagement({
       return {
         id: `imported-${Date.now()}-${idx}`,
         title: row.title,
+        originalTitle: row.originalTitle || undefined,
         type: row.type,
         creator: row.creator || '未记录创作者',
         coverUrl: row.coverUrl || `data:image/svg+xml;utf8,${coverSvg}`,
-        description: row.sourceUrl
-          ? `批量导入数据：导入自豆瓣或多平台同步档案。\n来源链接：${row.sourceUrl}`
-          : `批量导入数据：导入自多平台同步档案。`,
+        description: row.description || `批量导入数据：导入自豆瓣或多平台同步档案。`,
+        sourceUrl: row.sourceUrl || undefined,
         status: row.status,
         tags: row.tags,
         collections: [],
@@ -806,6 +842,11 @@ export default function DataManagement({
                           <span className="text-[10px] text-zinc-400">({row.creator})</span>
                         )}
                       </div>
+                      {row.originalTitle && (
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-500 italic truncate">
+                          原名：{row.originalTitle}
+                        </div>
+                      )}
 
                       {/* Comment and Rating */}
                       {row.personalNote && (

@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import type { Request, Response as ExpressResponse } from "express";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeApp, getApps, App } from "firebase-admin/app";
@@ -1253,6 +1252,7 @@ CRITICAL: Do NOT invent fake or placeholder titles if you are uncertain. Return 
 // Configure Vite or Static files depending on environment
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

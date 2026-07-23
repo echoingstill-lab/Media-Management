@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Download, Upload, RefreshCw, AlertTriangle, SquareCheck, FileText, ClipboardList, Layers, FileCode } from 'lucide-react';
+import { Download, Upload, RefreshCw, AlertTriangle, SquareCheck, FileText, ClipboardList, Layers, FileCode, ExternalLink } from 'lucide-react';
 import { MediaItem, Collection, CheckInLog, CheckInHabit, MediaType, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
 
 interface DataManagementProps {
@@ -39,6 +39,9 @@ interface ParsedImportRow {
   title: string;
   type: MediaType;
   creator: string;
+  coverUrl?: string;
+  sourceUrl?: string;
+  completedDate?: string;
   personalRating: number; // 0-10
   personalNote: string;
   status: MediaItem['status'];
@@ -74,6 +77,7 @@ export default function DataManagement({
   const [defaultImportStatus, setDefaultImportStatus] = useState<MediaItem['status']>('completed');
   const [parsedRows, setParsedRows] = useState<ParsedImportRow[]>([]);
   const [parsingError, setParsingError] = useState('');
+  const doubanScriptInstallUrl = `${import.meta.env.BASE_URL}douban-export.user.js`;
 
   const handleExport = () => {
     try {
@@ -207,6 +211,7 @@ export default function DataManagement({
         };
 
         const headers = splitCSVLine(lines[0]);
+        const cleanCell = (value: string | undefined) => (value || '').replace(/^"|"$/g, '').trim();
         
         // Find indices
         const titleIndex = headers.findIndex(h => h.includes('标题') || h.includes('title') || h.includes('name') || h.includes('名称'));
@@ -215,6 +220,11 @@ export default function DataManagement({
         const creatorIndex = headers.findIndex(h => h.includes('导演') || h.includes('作者') || h.includes('creator') || h.includes('author') || h.includes('director') || h.includes('制作'));
         const typeIndex = headers.findIndex(h => h.includes('类型') || h.includes('type') || h.includes('分类'));
         const tagsIndex = headers.findIndex(h => h.includes('标签') || h.includes('tag') || h.includes('label'));
+        const statusIndex = headers.findIndex(h => h.includes('状态') || h.includes('status'));
+        const dateIndex = headers.findIndex(h => h.includes('标记日期') || h.includes('完成日期') || h.includes('markeddate') || h.includes('marked_date') || h.includes('date'));
+        const linkIndex = headers.findIndex(h => h === 'link' || h.includes('链接') || h.includes('豆瓣') || h.includes('url'));
+        const coverIndex = headers.findIndex(h => h.includes('封面') || h.includes('cover'));
+        const introIndex = headers.findIndex(h => h.includes('简介') || h.includes('摘要') || h.includes('intro'));
 
         // Skip header line
         for (let i = 1; i < lines.length; i++) {
@@ -226,18 +236,21 @@ export default function DataManagement({
 
           // Resolve Title (Fallback to first non-empty column)
           const rawTitle = titleIndex !== -1 ? cols[titleIndex] : cols[0];
-          const cleanTitle = rawTitle ? rawTitle.replace(/^"|"$/g, '').trim() : '';
+          const cleanTitle = cleanCell(rawTitle);
 
           if (!cleanTitle) continue;
 
           // Resolve Creator
-          const rawCreator = creatorIndex !== -1 ? cols[creatorIndex] : '';
-          const cleanCreator = rawCreator ? rawCreator.replace(/^"|"$/g, '').trim() : '';
+          const cleanCreator = creatorIndex !== -1 ? cleanCell(cols[creatorIndex]) : '';
+          const sourceUrl = linkIndex !== -1 ? cleanCell(cols[linkIndex]) : '';
+          const coverUrl = coverIndex !== -1 ? cleanCell(cols[coverIndex]) : '';
+          const completedDate = dateIndex !== -1 ? cleanCell(cols[dateIndex]) : '';
+          const introText = introIndex !== -1 ? cleanCell(cols[introIndex]) : '';
 
           // Resolve Rating
           let rating = 0;
           if (ratingIndex !== -1 && cols[ratingIndex]) {
-            const rawRatingStr = cols[ratingIndex].replace(/^"|"$/g, '').trim();
+            const rawRatingStr = cleanCell(cols[ratingIndex]);
             const parsedNum = parseFloat(rawRatingStr);
             if (!isNaN(parsedNum)) {
               // Douban/CSV ratings can be 1-5 stars, 1-5 numbers, or 1-10 points
@@ -256,20 +269,19 @@ export default function DataManagement({
           }
 
           // Resolve Note
-          const rawNote = noteIndex !== -1 ? cols[noteIndex] : '';
-          const cleanNote = rawNote ? rawNote.replace(/^"|"$/g, '').trim() : '';
+          const cleanNote = noteIndex !== -1 ? cleanCell(cols[noteIndex]) : '';
 
           // Resolve Tags
           let parsedTags: string[] = [];
           if (tagsIndex !== -1 && cols[tagsIndex]) {
-            const rawTagsStr = cols[tagsIndex].replace(/^"|"$/g, '').trim();
+            const rawTagsStr = cleanCell(cols[tagsIndex]);
             parsedTags = rawTagsStr.split(/[;/,\s]+/).filter(Boolean);
           }
 
           // Resolve Type
           let parsedType = defaultImportType;
           if (typeIndex !== -1 && cols[typeIndex]) {
-            const tVal = cols[typeIndex].toLowerCase();
+            const tVal = cleanCell(cols[typeIndex]).toLowerCase();
             if (tVal.includes('书') || tVal.includes('book') || tVal.includes('read')) {
               parsedType = 'book';
             } else if (tVal.includes('影') || tVal.includes('movie') || tVal.includes('电影')) {
@@ -287,10 +299,10 @@ export default function DataManagement({
 
           // Resolve Status
           let parsedStatus: MediaItem['status'] = 'completed';
-          const sVal = (cols[titleIndex] || '').toLowerCase(); // Or check in comment/note column
-          if (sVal.includes('想看') || sVal.includes('wish')) {
+          const sVal = statusIndex !== -1 ? cleanCell(cols[statusIndex]).toLowerCase() : '';
+          if (sVal.includes('想') || sVal.includes('wish') || sVal.includes('wishlist')) {
              parsedStatus = 'wishlist';
-          } else if (sVal.includes('在读') || sVal.includes('在看') || sVal.includes('进行中')) {
+          } else if (sVal.includes('在读') || sVal.includes('在看') || sVal.includes('进行中') || sVal.includes('do') || sVal.includes('progress')) {
              parsedStatus = 'progress';
           } else if (sVal.includes('搁置')) {
              parsedStatus = 'wishlist';
@@ -301,8 +313,11 @@ export default function DataManagement({
             title: cleanTitle,
             type: parsedType,
             creator: cleanCreator,
+            coverUrl,
+            sourceUrl,
+            completedDate,
             personalRating: rating,
-            personalNote: cleanNote,
+            personalNote: cleanNote || introText,
             status: parsedStatus,
             tags: parsedTags,
             isValid: true,
@@ -405,13 +420,16 @@ export default function DataManagement({
         title: row.title,
         type: row.type,
         creator: row.creator || '未记录创作者',
-        coverUrl: `data:image/svg+xml;utf8,${coverSvg}`,
-        description: `批量导入数据：导入自多平台同步档案。`,
+        coverUrl: row.coverUrl || `data:image/svg+xml;utf8,${coverSvg}`,
+        description: row.sourceUrl
+          ? `批量导入数据：导入自豆瓣或多平台同步档案。\n来源链接：${row.sourceUrl}`
+          : `批量导入数据：导入自多平台同步档案。`,
         status: row.status,
         tags: row.tags,
         collections: [],
         personalRating: row.personalRating,
         personalNote: row.personalNote,
+        completedDate: row.status === 'completed' ? row.completedDate : undefined,
         reReadCount: 0,
         reReadLogs: [],
         noteImages: [],
@@ -632,6 +650,30 @@ export default function DataManagement({
         </div>
 
         <div className="space-y-4">
+          <div className="p-4 bg-zinc-950/40 border border-zinc-800 rounded-none flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-bold text-zinc-100">
+                <FileCode size={15} className="text-[#DDDAC4]" />
+                <span>豆瓣导出助手</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                先安装浏览器脚本，在豆瓣“看过 / 读过 / 听过 / 玩过”页面导出 CSV，再把 CSV 内容粘贴到下方文本框导入。
+              </p>
+              <p className="text-[10px] text-zinc-500 leading-relaxed">
+                浏览器限制我们不能直接读取豆瓣登录页面；脚本只在豆瓣页面本地读取您当前可见的数据。
+              </p>
+            </div>
+            <a
+              href={doubanScriptInstallUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 border border-[#DDDAC4]/60 text-[#DDDAC4] hover:bg-[#DDDAC4] hover:text-[#111214] text-xs font-bold uppercase tracking-wider transition-colors"
+            >
+              <span>安装豆瓣脚本</span>
+              <ExternalLink size={13} />
+            </a>
+          </div>
+
           <div className="p-4 bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-350 dark:border-zinc-850 rounded-none text-xs leading-relaxed space-y-2">
             <p className="font-bold text-zinc-700 dark:text-zinc-300">使用说明：</p>
             <ul className="list-disc list-inside space-y-1 text-zinc-500 dark:text-zinc-400 font-serif">

@@ -404,6 +404,18 @@ export default function UserGuideModal({
                   </p>
                 </div>
 
+                <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-2">
+                  <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4]">
+                    从豆瓣批量迁移记录
+                  </div>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    在“数据相关”的批量导入区域安装豆瓣导出助手。安装后到豆瓣个人页面导出 CSV，再回到本页粘贴 CSV 内容并解析导入。
+                  </p>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-500">
+                    由于浏览器跨站限制，媒体管理不能直接读取您的豆瓣登录页面；导出脚本只在豆瓣页面本地运行。
+                  </p>
+                </div>
+
                 {isAdmin && (
                   <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-3">
                     <div className="flex items-center gap-2 font-bold text-sm text-[#4A3B32] dark:text-[#DDDAC4]">

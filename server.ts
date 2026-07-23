@@ -1,17 +1,18 @@
 import express from "express";
 import path from "path";
-import type { Request } from "express";
+import type { Request, Response as ExpressResponse } from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeApp, getApps, App } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore } from "firebase-admin/firestore";
 import OpenAI from "openai";
+import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 const allowedCorsOrigins = new Set(
   [
@@ -87,6 +88,9 @@ let isFirestoreAvailable = true;
 // Dynamic daily limit (default 50)
 let customDailyLimit = parseInt(process.env.AI_DAILY_LIMIT || "50", 10);
 const adminToken = (process.env.ADMIN_TOKEN || "").trim();
+const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/+$/u, "");
+const supabaseServiceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+const syncAuthSecret = (process.env.SYNC_AUTH_SECRET || process.env.ADMIN_TOKEN || "").trim();
 
 type ParsedMedia = {
   title: string;
@@ -99,10 +103,308 @@ type ParsedMedia = {
   releaseYear: number | string | null;
 };
 
+type SyncUser = {
+  id: string;
+  username: string;
+};
+
+type SyncTokenPayload = {
+  sub: string;
+  username: string;
+  exp: number;
+};
+
 function isAdminRequest(req: Request): boolean {
   if (!adminToken) return false;
   return req.get("x-admin-token") === adminToken;
 }
+
+function isCloudSyncConfigured(): boolean {
+  return Boolean(supabaseUrl && supabaseServiceRoleKey && syncAuthSecret);
+}
+
+function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase();
+}
+
+function validateUsername(username: string): string | null {
+  const normalized = normalizeUsername(username);
+  if (normalized.length < 1 || normalized.length > 32) {
+    return "用户名长度需为 1-32 个字符。";
+  }
+  if (!/^[\p{L}\p{N}_-]+$/u.test(normalized)) {
+    return "用户名只能包含文字、数字、下划线或短横线。";
+  }
+  return null;
+}
+
+function validatePassword(password: string): string | null {
+  if (typeof password !== "string" || password.length < 6) {
+    return "密码至少需要 6 位。";
+  }
+  if (password.length > 128) {
+    return "密码过长。";
+  }
+  return null;
+}
+
+function hashPassword(password: string, salt = randomBytes(16).toString("hex")): { salt: string; hash: string } {
+  const hash = pbkdf2Sync(password, salt, 120000, 32, "sha256").toString("hex");
+  return { salt, hash };
+}
+
+function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
+  const actualHash = hashPassword(password, salt).hash;
+  const actual = Buffer.from(actualHash, "hex");
+  const expected = Buffer.from(expectedHash, "hex");
+  if (actual.length !== expected.length) return false;
+  return timingSafeEqual(actual, expected);
+}
+
+function base64url(input: string | Buffer): string {
+  return Buffer.from(input).toString("base64url");
+}
+
+function signToken(payload: SyncTokenPayload): string {
+  const body = base64url(JSON.stringify(payload));
+  const signature = createHmac("sha256", syncAuthSecret).update(body).digest("base64url");
+  return `${body}.${signature}`;
+}
+
+function verifyToken(token: string): SyncTokenPayload | null {
+  if (!syncAuthSecret || !token.includes(".")) return null;
+  const [body, signature] = token.split(".");
+  const expected = createHmac("sha256", syncAuthSecret).update(body).digest("base64url");
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as SyncTokenPayload;
+    if (!payload.sub || !payload.username || Date.now() > payload.exp * 1000) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getSyncUser(req: Request): SyncTokenPayload | null {
+  const auth = req.get("authorization") || "";
+  const match = auth.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  return verifyToken(match[1]);
+}
+
+async function supabaseRest(pathname: string, init: RequestInit = {}): Promise<globalThis.Response> {
+  if (!isCloudSyncConfigured()) {
+    throw new Error("Cloud sync is not configured.");
+  }
+  const headers = new Headers(init.headers);
+  headers.set("apikey", supabaseServiceRoleKey);
+  headers.set("authorization", `Bearer ${supabaseServiceRoleKey}`);
+  headers.set("content-type", "application/json");
+  return fetch(`${supabaseUrl}/rest/v1/${pathname}`, {
+    ...init,
+    headers,
+  });
+}
+
+async function findSyncUser(username: string): Promise<any | null> {
+  const normalized = encodeURIComponent(normalizeUsername(username));
+  const res = await supabaseRest(`app_users?username=eq.${normalized}&select=id,username,password_salt,password_hash&limit=1`);
+  if (!res.ok) throw new Error(await res.text());
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+function cloudSyncUnavailable(res: ExpressResponse): boolean {
+  if (isCloudSyncConfigured()) return false;
+  res.status(503).json({
+    success: false,
+    error: "云同步尚未配置。请在 Vercel 配置 SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY 和 SYNC_AUTH_SECRET。",
+  });
+  return true;
+}
+
+// Cloud sync account and snapshot endpoints.
+// This is intentionally snapshot-based for the preview version: local data remains primary,
+// and conflicts must be resolved explicitly by the user.
+app.post("/api/sync/register", async (req, res) => {
+  if (cloudSyncUnavailable(res)) return;
+
+  try {
+    const username = String(req.body?.username || "");
+    const password = String(req.body?.password || "");
+    const usernameError = validateUsername(username);
+    const passwordError = validatePassword(password);
+    if (usernameError || passwordError) {
+      return res.status(400).json({ success: false, error: usernameError || passwordError });
+    }
+
+    const normalized = normalizeUsername(username);
+    const existing = await findSyncUser(normalized);
+    if (existing) {
+      return res.status(409).json({ success: false, error: "该用户名已被注册。" });
+    }
+
+    const { salt, hash } = hashPassword(password);
+    const insertRes = await supabaseRest("app_users", {
+      method: "POST",
+      headers: {
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        username: normalized,
+        password_salt: salt,
+        password_hash: hash,
+      }),
+    });
+    if (!insertRes.ok) {
+      return res.status(500).json({ success: false, error: await insertRes.text() });
+    }
+
+    const [user] = await insertRes.json();
+    const token = signToken({
+      sub: user.id,
+      username: user.username,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: { id: user.id, username: user.username },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || "注册失败。" });
+  }
+});
+
+app.post("/api/sync/login", async (req, res) => {
+  if (cloudSyncUnavailable(res)) return;
+
+  try {
+    const username = String(req.body?.username || "");
+    const password = String(req.body?.password || "");
+    const usernameError = validateUsername(username);
+    const passwordError = validatePassword(password);
+    if (usernameError || passwordError) {
+      return res.status(400).json({ success: false, error: usernameError || passwordError });
+    }
+
+    const user = await findSyncUser(username);
+    if (!user || !verifyPassword(password, user.password_salt, user.password_hash)) {
+      return res.status(401).json({ success: false, error: "用户名或密码错误。" });
+    }
+
+    const token = signToken({
+      sub: user.id,
+      username: user.username,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: { id: user.id, username: user.username },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || "登录失败。" });
+  }
+});
+
+app.get("/api/sync/data", async (req, res) => {
+  if (cloudSyncUnavailable(res)) return;
+
+  const user = getSyncUser(req);
+  if (!user) {
+    return res.status(401).json({ success: false, error: "请重新登录云同步账号。" });
+  }
+
+  try {
+    const dataRes = await supabaseRest(
+      `user_snapshots?user_id=eq.${encodeURIComponent(user.sub)}&select=payload,updated_at,revision&limit=1`,
+    );
+    if (!dataRes.ok) {
+      return res.status(500).json({ success: false, error: await dataRes.text() });
+    }
+    const rows = await dataRes.json();
+    const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    return res.json({
+      success: true,
+      data: row?.payload || null,
+      updatedAt: row?.updated_at || null,
+      revision: row?.revision || 0,
+      user: { id: user.sub, username: user.username },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || "读取云端数据失败。" });
+  }
+});
+
+app.put("/api/sync/data", async (req, res) => {
+  if (cloudSyncUnavailable(res)) return;
+
+  const user = getSyncUser(req);
+  if (!user) {
+    return res.status(401).json({ success: false, error: "请重新登录云同步账号。" });
+  }
+
+  try {
+    const payload = req.body?.payload;
+    const baseUpdatedAt = req.body?.baseUpdatedAt || null;
+    const force = req.body?.force === true;
+    if (!payload || typeof payload !== "object" || !Array.isArray(payload.mediaItems)) {
+      return res.status(400).json({ success: false, error: "同步数据格式无效。" });
+    }
+
+    const existingRes = await supabaseRest(
+      `user_snapshots?user_id=eq.${encodeURIComponent(user.sub)}&select=payload,updated_at,revision&limit=1`,
+    );
+    if (!existingRes.ok) {
+      return res.status(500).json({ success: false, error: await existingRes.text() });
+    }
+    const existingRows = await existingRes.json();
+    const existing = Array.isArray(existingRows) && existingRows.length > 0 ? existingRows[0] : null;
+    if (existing?.updated_at && baseUpdatedAt && existing.updated_at !== baseUpdatedAt && !force) {
+      return res.status(409).json({
+        success: false,
+        error: "云端数据已变化，请先确认使用本地数据覆盖云端，或先从云端恢复。",
+        conflict: {
+          data: existing.payload,
+          updatedAt: existing.updated_at,
+          revision: existing.revision || 0,
+        },
+      });
+    }
+
+    const nextRevision = (existing?.revision || 0) + 1;
+    const upsertRes = await supabaseRest("user_snapshots", {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify({
+        user_id: user.sub,
+        payload,
+        revision: nextRevision,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    if (!upsertRes.ok) {
+      return res.status(500).json({ success: false, error: await upsertRes.text() });
+    }
+    const [saved] = await upsertRes.json();
+    return res.json({
+      success: true,
+      updatedAt: saved.updated_at,
+      revision: saved.revision,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || "上传云端数据失败。" });
+  }
+});
 
 // Admin limit management endpoints
 app.get("/api/admin/limit", (req, res) => {

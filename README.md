@@ -48,14 +48,16 @@
 
 媒体档案、合集、打卡、标签和本地账号信息默认保存在当前浏览器的 `localStorage` 中。页面更新通常不会删除这些数据，因为代码更新和浏览器本地存储是分开的。
 
+新用户首次登录后，页面会先提示查看“数据安全与同步”说明。正式录入重要数据前，请先确认当前使用方式：只在本机使用时定期导出 JSON；需要换浏览器、换设备或多人测试时，先配置云同步，再通过“数据相关”页面手动上传或恢复数据。
+
 需要注意：
 - 清理浏览器站点数据、使用无痕模式、更换浏览器、更换设备或更换域名后，可能读不到原来的记录。
-- 当前账号只是当前浏览器里的数据分区，不是云端安全账号系统。
+- 未配置云同步时，账号只是当前浏览器里的数据分区；配置云同步后，注册用户名会在云端保持唯一，并通过服务端快照实现多端同步。
 - 重要记录请在“数据相关”页面定期导出 JSON 备份。
 
 ### 多用户限制
 
-当前多用户仅适合小范围测试，例如自己和朋友分别在各自设备上使用。不同用户的数据不会上传到 GitHub Pages，也不会自动同步到其他设备。
+当前多用户仅适合小范围测试，例如自己和朋友分别在各自设备上使用。未配置云同步时，不同用户的数据不会上传到 GitHub Pages，也不会自动同步到其他设备。
 
 同一台电脑同一浏览器中，懂技术的用户可以通过浏览器开发工具看到本地存储内容，因此当前版本不能作为严格隐私隔离或多人协作系统。
 
@@ -81,13 +83,37 @@ CORS_ORIGINS="https://echoingstill-lab.github.io"
 
 ### 后续服务器版本
 
-如果后续需要真正的多人账号、云端同步和权限隔离，需要引入服务器数据库。推荐方向：
+如果后续需要真正的多人账号、云端同步和权限隔离，需要引入服务器数据库。当前先行实现采用“云端快照同步”：
 
-- 前端继续部署在 Pages 或 Vercel。
-- 后端部署在 Vercel、Cloud Run 或自有服务器。
-- 数据库使用 PostgreSQL、Supabase、Firebase 或 MongoDB。
-- 后端提供登录鉴权、媒体数据 CRUD、备份导入导出、链接解析 API。
-- 每条媒体数据按用户 ID 归属，服务端校验权限，而不是依赖前端判断。
+- 前端继续部署在 GitHub Pages 或 Vercel。
+- Vercel API 负责注册、登录、读取云端快照、上传云端快照。
+- Supabase/Postgres 保存用户账号和每个用户的一份完整数据快照。
+- 浏览器仍保留本地缓存和 JSON 导出备份，网络异常时不影响本机使用。
+- 本机和云端都有数据时不会静默覆盖，需要用户在“数据相关”页手动选择。
+
+### Supabase 云同步配置
+
+1. 新建 Supabase 项目。
+2. 在 Supabase SQL Editor 中执行 `docs/cloud-sync-supabase.sql`。
+3. 在 Vercel 环境变量中设置：
+
+```env
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="..."
+SYNC_AUTH_SECRET="use-a-long-random-secret"
+CORS_ORIGINS="https://echoingstill-lab.github.io"
+```
+
+4. 在公开 GitHub 仓库 Actions Variables 中设置：
+
+```env
+VITE_API_BASE_URL="https://your-vercel-project.vercel.app"
+```
+
+安全说明：
+- `SUPABASE_SERVICE_ROLE_KEY` 只能放在 Vercel 环境变量中，不能放进前端或 GitHub Pages。
+- Supabase 表已启用 RLS，前端不直接访问数据库，只通过 Vercel API 访问。
+- 第一版同步的是整份 JSON 快照，不做实时协同编辑。
 
 ---
 
@@ -106,7 +132,7 @@ CORS_ORIGINS="https://echoingstill-lab.github.io"
 
 ## 使用指南与流程
 
-1. 启动体验：访问应用后，系统会提供交互式功能指引，帮助新用户快速熟悉界面。
+1. 启动体验：访问应用并登录后，系统会先提示查看数据保存说明，确认本机缓存、JSON 备份和云端同步的区别。
 2. 建立月度计划：进入“月度清单”页面，添加本月计划阅读或观赏的作品。
 3. 快速录入作品：点击导航栏“录入档案”，粘贴豆瓣或其他平台的作品链接，系统将自动补全元数据。
 4. 归类与分组：为作品添加相应标签，并将其归入对应的“主题合集”中。
@@ -163,6 +189,9 @@ ADMIN_TOKEN="..."
 APP_URL="..."
 VITE_API_BASE_URL=""
 CORS_ORIGINS="https://echoingstill-lab.github.io"
+SUPABASE_URL=""
+SUPABASE_SERVICE_ROLE_KEY=""
+SYNC_AUTH_SECRET=""
 ```
 
 参数说明：
@@ -172,6 +201,9 @@ CORS_ORIGINS="https://echoingstill-lab.github.io"
 - `APP_URL`：应用部署的域名地址。
 - `VITE_API_BASE_URL`：GitHub Pages 前端调用 Vercel/API 服务时使用的后端地址。
 - `CORS_ORIGINS`：允许调用 API 的前端来源，多个来源用英文逗号分隔。
+- `SUPABASE_URL`：Supabase 项目地址，用于云同步。
+- `SUPABASE_SERVICE_ROLE_KEY`：Supabase 服务端密钥，只能配置在 Vercel 服务端环境变量中。
+- `SYNC_AUTH_SECRET`：云同步登录 token 的签名密钥，请使用高强度随机字符串。
 
 ---
 

@@ -5,23 +5,33 @@
 
 import React, { useRef, useState } from 'react';
 import { Download, Upload, RefreshCw, AlertTriangle, SquareCheck, FileText, ClipboardList, Layers, FileCode } from 'lucide-react';
-import { MediaItem, Collection, CheckInLog, CheckInHabit, MediaType, MEDIA_TYPE_LABELS } from '../types';
+import { MediaItem, Collection, CheckInLog, CheckInHabit, MediaType, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
 
 interface DataManagementProps {
   mediaItems: MediaItem[];
   collections: Collection[];
   habits: CheckInHabit[];
   checkInLogs: CheckInLog[];
+  tagDefinitions: TagDefinition[];
   onImport: (data: {
     mediaItems: MediaItem[];
     collections: Collection[];
     habits: CheckInHabit[];
     checkInLogs: CheckInLog[];
+    tagDefinitions?: TagDefinition[];
   }) => void;
   onReset: () => void;
   onBulkAddItems: (items: MediaItem[]) => void;
   darkMode: boolean;
   isAdmin?: boolean;
+  cloudSync?: {
+    enabled: boolean;
+    status: 'idle' | 'syncing' | 'synced' | 'error' | 'conflict';
+    message: string;
+    updatedAt?: string | null;
+  };
+  onPullCloud?: () => void;
+  onPushCloud?: (force?: boolean) => void;
 }
 
 interface ParsedImportRow {
@@ -42,11 +52,15 @@ export default function DataManagement({
   collections,
   habits,
   checkInLogs,
+  tagDefinitions,
   onImport,
   onReset,
   onBulkAddItems,
   darkMode,
   isAdmin = false,
+  cloudSync,
+  onPullCloud,
+  onPushCloud,
 }: DataManagementProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({
@@ -70,6 +84,7 @@ export default function DataManagement({
         collections,
         habits,
         checkInLogs,
+        tagDefinitions,
       };
 
       const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -113,12 +128,14 @@ export default function DataManagement({
         const importedCollections = Array.isArray(json.collections) ? json.collections : [];
         const importedHabits = Array.isArray(json.habits) ? json.habits : [];
         const importedLogs = Array.isArray(json.checkInLogs) ? json.checkInLogs : [];
+        const importedTags = Array.isArray(json.tagDefinitions) ? json.tagDefinitions : [];
 
         onImport({
           mediaItems: importedItems,
           collections: importedCollections,
           habits: importedHabits,
           checkInLogs: importedLogs,
+          tagDefinitions: importedTags,
         });
 
         setStatus({
@@ -444,9 +461,63 @@ export default function DataManagement({
           <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
             <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">多人使用限制</p>
             <p className="text-zinc-500 dark:text-zinc-400">
-              当前账号只是本浏览器内的数据分区，不是云端安全账号。重要数据请定期导出 JSON。
+              未连接云同步时，账号只在当前浏览器内分区；连接云同步后，注册名云端唯一，并可手动同步整份数据快照。
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className={`border p-5 rounded-none transition-all duration-300 ${
+        darkMode ? 'bg-[#191b1e] border-[#2d3137]' : 'bg-white border-[#E6E0D5] shadow-sm'
+      }`}>
+        <div className="space-y-1 mb-4">
+          <h2 className="text-lg font-serif font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+            云端同步
+          </h2>
+          <p className="text-[10.5px] uppercase tracking-wide text-zinc-400">
+            本地优先，云端保存整份数据快照
+          </p>
+        </div>
+        <div className={`p-3 border text-xs leading-relaxed mb-4 ${
+          cloudSync?.enabled
+            ? cloudSync.status === 'error' || cloudSync.status === 'conflict'
+              ? 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300'
+              : 'border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
+            : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/25 text-zinc-500 dark:text-zinc-400'
+        }`}>
+          {cloudSync?.message || '未连接云同步。配置 Vercel + Supabase 后，登录即可同步多端数据。'}
+          {cloudSync?.updatedAt && (
+            <span className="block mt-1 text-[10px] opacity-70">
+              云端更新时间：{new Date(cloudSync.updatedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onPullCloud}
+            disabled={!cloudSync?.enabled || cloudSync.status === 'syncing'}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          >
+            从云端恢复到本机
+          </button>
+          <button
+            type="button"
+            onClick={() => onPushCloud?.(false)}
+            disabled={!cloudSync?.enabled || cloudSync.status === 'syncing'}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          >
+            上传本机数据到云端
+          </button>
+          {cloudSync?.status === 'conflict' && (
+            <button
+              type="button"
+              onClick={() => onPushCloud?.(true)}
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors"
+            >
+              确认用本机覆盖云端
+            </button>
+          )}
         </div>
       </div>
       
@@ -625,7 +696,10 @@ export default function DataManagement({
 
           <div className="flex justify-between items-center">
             {parsingError && (
-              <span className="text-red-500 text-xs font-serif">⚠️ {parsingError}</span>
+              <span className="text-red-500 text-xs font-serif flex items-center gap-1">
+                <AlertTriangle size={13} />
+                {parsingError}
+              </span>
             )}
             <button
               onClick={handleParseImportText}

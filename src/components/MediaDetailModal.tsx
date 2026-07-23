@@ -557,7 +557,10 @@ export default function MediaDetailModal({
                         : 'bg-white hover:bg-zinc-50 dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800'
                     }`}
                   >
-                    ❤️ 好看
+                    <span className="inline-flex items-center justify-center gap-1">
+                      <Heart size={13} fill={rating === 10 ? 'currentColor' : 'none'} />
+                      好看
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -568,7 +571,10 @@ export default function MediaDetailModal({
                         : 'bg-white hover:bg-zinc-50 dark:bg-zinc-950/40 text-zinc-500 border-zinc-200 dark:border-zinc-800'
                     }`}
                   >
-                    💢 一般
+                    <span className="inline-flex items-center justify-center gap-1">
+                      <ThumbsDown size={13} />
+                      一般
+                    </span>
                   </button>
                 </div>
               </div>

@@ -470,7 +470,7 @@ export default function MediaEditModal({
                           onClick={() => toggleTag(t)}
                           className="text-[9px] hover:text-red-500 cursor-pointer ml-1 font-bold"
                         >
-                          ✕
+                          x
                         </button>
                       </span>
                     ))

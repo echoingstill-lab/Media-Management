@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
@@ -26,6 +26,7 @@ export interface UserGuideModalProps {
   onClose: () => void;
   onSwitchTab: (tab: 'wishlist' | 'archive' | 'collections' | 'calendar' | 'backup') => void;
   onOpenAddModal: (open: boolean) => void;
+  initialTab?: 'features' | 'triggers' | 'data';
   onClearSampleData?: () => void;
   onResetSampleData?: () => void;
   isAdmin?: boolean;
@@ -36,12 +37,17 @@ export default function UserGuideModal({
   onClose, 
   onSwitchTab, 
   onOpenAddModal,
+  initialTab = 'features',
   onClearSampleData,
   onResetSampleData,
   isAdmin = false
 }: UserGuideModalProps) {
-  const [activeTab, setActiveTab] = useState<'features' | 'triggers' | 'data'>('features');
+  const [activeTab, setActiveTab] = useState<'features' | 'triggers' | 'data'>(initialTab);
   const [clearedNotice, setClearedNotice] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -130,19 +136,17 @@ export default function UserGuideModal({
               <span>触发式教学微卡</span>
             </button>
 
-            {isAdmin && (
-              <button
-                onClick={() => setActiveTab('data')}
-                className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
-                  activeTab === 'data'
-                    ? 'border-[#4A3B32] dark:border-[#DDDAC4] text-[#4A3B32] dark:text-[#DDDAC4]'
-                    : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                }`}
-              >
-                <Database size={14} />
-                <span>测试数据管理</span>
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('data')}
+              className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
+                activeTab === 'data'
+                  ? 'border-[#4A3B32] dark:border-[#DDDAC4] text-[#4A3B32] dark:text-[#DDDAC4]'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              }`}
+            >
+              <Database size={14} />
+              <span>数据安全与同步</span>
+            </button>
           </div>
 
           {/* Body Content */}
@@ -347,36 +351,85 @@ export default function UserGuideModal({
             )}
 
             {/* TAB 3: DATA MANAGEMENT */}
-            {activeTab === 'data' && isAdmin && (
+            {activeTab === 'data' && (
               <div className="space-y-4">
                 <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-3">
                   <div className="flex items-center gap-2 font-bold text-sm text-[#4A3B32] dark:text-[#DDDAC4]">
-                    <Trash2 size={16} className="text-rose-600 dark:text-rose-400" />
-                    <span>{isAdmin ? '管理员测试数据重置与管理' : '档案库数据清空与重置'}</span>
+                    <Database size={16} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>先确认数据保存方式</span>
                   </div>
                   <p className="text-zinc-600 dark:text-zinc-400">
-                    {isAdmin
-                      ? '作为管理员，您可以重置或清空系统预置的测试数据。普通注册用户默认将获得干净空白的专属档案空间。'
-                      : '普通注册用户账户默认已为您准备好空白干净的私藏归档空间。如果您希望清空当前账号录入的所有临时记录，可以点击下方清空按钮。'}
+                    先行版采用本地优先策略：编辑时会先写入当前浏览器本地存储。配置云同步后，可把整份数据快照保存到云端，用于换设备或换浏览器恢复。
                   </p>
-                  
-                  {clearedNotice && (
-                    <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1.5">
-                      <CheckCircle2 size={14} />
-                      <span>数据更新成功！您可以关闭此弹窗开始使用。</span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                    <div className="p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30">
+                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">1. 本地缓存</div>
+                      <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
+                        不联网也能继续记录。清理浏览器站点数据、无痕模式或换浏览器时，可能读不到原记录。
+                      </p>
                     </div>
-                  )}
-
+                    <div className="p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30">
+                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">2. JSON 备份</div>
+                      <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
+                        重要记录请定期在“数据相关”导出 JSON。更新前、换设备前、导入云端前都建议先导出。
+                      </p>
+                    </div>
+                    <div className="p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30">
+                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">3. 云端快照</div>
+                      <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
+                        登录后可把整份数据同步到云端。多端都有数据时不会自动覆盖，需要手动选择。
+                      </p>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-3 pt-2">
                     <button
-                      onClick={handleClear}
-                      className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                      onClick={() => {
+                        onClose();
+                        onSwitchTab('backup');
+                      }}
+                      className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      <Trash2 size={14} />
-                      <span>{isAdmin ? '清空测试数据' : '清空当前账户所有记录'}</span>
+                      <ArrowRight size={14} />
+                      <span>前往数据相关</span>
                     </button>
+                  </div>
+                </div>
 
-                    {isAdmin && (
+                <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-2">
+                  <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4]">
+                    数据安全底线
+                  </div>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    云同步第一版保存的是整份 JSON 快照，不做多人实时协作。遇到本机和云端同时存在数据时，系统会提示选择，不会静默覆盖。
+                  </p>
+                </div>
+
+                {isAdmin && (
+                  <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-3">
+                    <div className="flex items-center gap-2 font-bold text-sm text-[#4A3B32] dark:text-[#DDDAC4]">
+                      <Trash2 size={16} className="text-rose-600 dark:text-rose-400" />
+                      <span>管理员测试数据重置与管理</span>
+                    </div>
+                    <p className="text-zinc-600 dark:text-zinc-400">
+                      作为管理员，您可以重置或清空系统预置的测试数据。普通用户不会看到这些测试数据入口。
+                    </p>
+
+                    {clearedNotice && (
+                      <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1.5">
+                        <CheckCircle2 size={14} />
+                        <span>数据更新成功！您可以关闭此弹窗开始使用。</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      <button
+                        onClick={handleClear}
+                        className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Trash2 size={14} />
+                        <span>清空测试数据</span>
+                      </button>
+
                       <button
                         onClick={handleReset}
                         className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold transition-colors cursor-pointer flex items-center gap-1.5"
@@ -384,18 +437,9 @@ export default function UserGuideModal({
                         <RotateCcw size={14} />
                         <span>恢复预置示例测试数据</span>
                       </button>
-                    )}
+                    </div>
                   </div>
-                </div>
-
-                <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-2">
-                  <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4]">
-                    数据隐私与离线导出说明
-                  </div>
-                  <p className="text-zinc-600 dark:text-zinc-400">
-                    本软件所有数据默认仅保存在当前浏览器的 LocalStorage 本地存储中。建议定期前往“数据相关”标签页导出标准的 JSON 格式备份文件，保障您的数据安全。
-                  </p>
-                </div>
+                )}
               </div>
             )}
 

@@ -59,11 +59,11 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
   const handleSaveLimit = async () => {
     const num = parseInt(newLimitInput, 10);
     if (isNaN(num) || num < 1) {
-      setLimitMsg('⚠️ 请输入有效的每日限额数字');
+      setLimitMsg('错误：请输入有效的每日限额数字');
       return;
     }
     if (!adminTokenInput.trim()) {
-      setLimitMsg('⚠️ 请先输入服务器管理员令牌');
+      setLimitMsg('错误：请先输入服务器管理员令牌');
       return;
     }
     try {
@@ -79,12 +79,12 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
       const data = await res.json();
       if (data.success) {
         setCurrentLimit(data.limit);
-        setLimitMsg('✅ 系统每日解析限额已成功更新为 ' + data.limit + ' 次！');
+        setLimitMsg('成功：系统每日解析限额已更新为 ' + data.limit + ' 次。');
       } else {
-        setLimitMsg('⚠️ ' + (data.error || '更新失败'));
+        setLimitMsg('错误：' + (data.error || '更新失败'));
       }
     } catch (err: any) {
-      setLimitMsg('⚠️ 无法连接到服务器');
+      setLimitMsg('错误：无法连接到服务器');
     }
   };
 
@@ -235,7 +235,7 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
               <div className="bg-amber-500/10 border border-amber-500/30 p-4 space-y-3 font-serif">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                    👑 管理员权限控制台
+                    管理员权限控制台
                   </span>
                   <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 border border-amber-500/30 font-mono">
                     需要服务器令牌

@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Key, User, ArrowRight, SquareCheck } from 'lucide-react';
+import { apiJson } from '../utils/api';
 
 interface LoginViewProps {
   onLogin: (username: string, isAdmin?: boolean) => void;
@@ -18,6 +19,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Local-only account storage keeps user accounts saved locally
   const getStoredUsers = (): Record<string, string> => {
@@ -36,7 +38,34 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
     localStorage.setItem('media_management_users', JSON.stringify(users));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const tryCloudAuth = async (endpoint: '/api/sync/login' | '/api/sync/register', normalizedUser: string, rawPassword: string) => {
+    try {
+      const { response, data } = await apiJson<{
+        success?: boolean;
+        token?: string;
+        user?: { username: string };
+        error?: string;
+      }>(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: normalizedUser, password: rawPassword }),
+      });
+
+      if (response.status === 404 || response.status === 503 || !data) {
+        return { available: false };
+      }
+      if (!response.ok || !data.success || !data.token || !data.user) {
+        return { available: true, error: data.error || '云端账号验证失败' };
+      }
+      localStorage.setItem('media_management_cloud_token', data.token);
+      localStorage.setItem('media_management_cloud_user', data.user.username);
+      return { available: true, username: data.user.username };
+    } catch {
+      return { available: false };
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
@@ -48,31 +77,48 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
     const users = getStoredUsers();
     const normalizedUser = username.trim().toLowerCase();
+    setLoading(true);
 
     if (mode === 'register') {
       if (password !== confirmPassword) {
         setError('两次输入的密码不一致');
+        setLoading(false);
         return;
       }
-      if (users[normalizedUser]) {
+      const cloud = await tryCloudAuth('/api/sync/register', normalizedUser, password);
+      if (cloud.available && cloud.error) {
+        setError(cloud.error);
+        setLoading(false);
+        return;
+      }
+      if (!cloud.available && users[normalizedUser]) {
         setError('该用户名已被注册');
+        setLoading(false);
         return;
       }
       saveUser(username.trim(), password);
       const isRegisteredAdmin = normalizedUser === 'echoingstill';
-      setSuccessMsg('注册成功！正在自动登录...');
+      setSuccessMsg(cloud.available ? '云端注册成功！正在自动登录...' : '本地注册成功！正在自动登录...');
       setTimeout(() => {
-        onLogin(username.trim(), isRegisteredAdmin);
+        onLogin(cloud.username || username.trim(), isRegisteredAdmin);
       }, 800);
     } else {
+      const cloud = await tryCloudAuth('/api/sync/login', normalizedUser, password);
+      if (cloud.available && cloud.error) {
+        setError(cloud.error);
+        setLoading(false);
+        return;
+      }
       const storedPass = users[normalizedUser] || (normalizedUser === 'echoingstill' ? 'Echoingstill' : null);
-      if (!storedPass || storedPass !== password) {
+      if (!cloud.available && (!storedPass || storedPass !== password)) {
         setError('用户名或密码错误');
+        setLoading(false);
         return;
       }
       const isAdminUser = normalizedUser === 'echoingstill' || normalizedUser === 'admin';
-      onLogin(username.trim(), isAdminUser);
+      onLogin(cloud.username || username.trim(), isAdminUser);
     }
+    setLoading(false);
   };
 
   return (
@@ -141,12 +187,12 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
             </button>
           </div>
 
-          {/* Feedback messages */}
-          {error && (
-            <div className="p-3 text-xs font-serif bg-red-500/10 border border-red-500/20 text-red-500 rounded-none">
-              ⚠️ {error}
-            </div>
-          )}
+        {/* Feedback messages */}
+        {error && (
+          <div className="p-3 text-xs font-serif bg-red-500/10 border border-red-500/20 text-red-500 rounded-none">
+            {error}
+          </div>
+        )}
           
           {successMsg && (
             <div className="p-3 text-xs font-serif bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-none flex items-center gap-2">
@@ -230,13 +276,14 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
           {/* Action button */}
           <button
             type="submit"
+            disabled={loading}
             className={`w-full py-3 text-xs tracking-widest font-bold transition-all duration-200 flex items-center justify-center gap-2 rounded-none cursor-pointer font-serif ${
               darkMode 
                 ? 'bg-zinc-100 text-zinc-950 hover:bg-white' 
                 : 'bg-[#4A3B32] text-white hover:bg-[#382B24]'
-            }`}
+            } disabled:opacity-60 disabled:cursor-wait`}
           >
-            <span>{mode === 'register' ? '确认注册并加入' : '立即登录系统'}</span>
+            <span>{loading ? '正在验证账户...' : mode === 'register' ? '确认注册并加入' : '立即登录系统'}</span>
             <ArrowRight size={13} strokeWidth={2.5} />
           </button>
         </form>
@@ -244,7 +291,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         {/* Footer info */}
         <div className="space-y-2 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10 text-center font-serif">
           <p className="text-[10px] opacity-60 leading-relaxed">
-            账号与数据自动持久化。管理员账号 (Echoingstill) 自动获得内置测试归档与管理能力；普通用户建立独立的私藏档案空间。
+            已配置云同步时，用户名会在云端保持唯一；未配置时使用本机账号与本地数据。
           </p>
         </div>
 

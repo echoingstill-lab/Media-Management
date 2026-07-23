@@ -22,6 +22,24 @@ import AISettingsModal from './components/AISettingsModal';
 import TagManagerModal from './components/TagManagerModal';
 import UserGuideModal from './components/UserGuideModal';
 import AccountSettingsModal from './components/AccountSettingsModal';
+import { apiJson } from './utils/api';
+
+type CloudPayload = {
+  version: string;
+  exportedAt: string;
+  mediaItems: MediaItem[];
+  collections: Collection[];
+  habits: CheckInHabit[];
+  checkInLogs: CheckInLog[];
+  tagDefinitions: TagDefinition[];
+};
+
+type CloudSyncState = {
+  enabled: boolean;
+  status: 'idle' | 'syncing' | 'synced' | 'error' | 'conflict';
+  message: string;
+  updatedAt?: string | null;
+};
 
 export default function App() {
   // Helper for user-scoped storage key
@@ -69,6 +87,14 @@ export default function App() {
     setIsAdmin(false);
     localStorage.removeItem('media_management_user');
     localStorage.removeItem('media_management_is_admin');
+    localStorage.removeItem('media_management_cloud_token');
+    localStorage.removeItem('media_management_cloud_user');
+    localStorage.removeItem('media_management_cloud_updated_at');
+    setCloudSync({
+      enabled: false,
+      status: 'error',
+      message: '已退出云同步账号。',
+    });
     window.dispatchEvent(new Event('media_archive_guides_reset'));
   };
 
@@ -309,10 +335,250 @@ export default function App() {
   const [showAISettings, setShowAISettings] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [showUserGuide, setShowUserGuide] = useState(false);
+  const [userGuideInitialTab, setUserGuideInitialTab] = useState<'features' | 'triggers' | 'data'>('features');
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showGuidePrompt, setShowGuidePrompt] = useState<boolean>(() => {
     return localStorage.getItem('media_management_onboarding_completed') !== 'true';
   });
+  const [cloudSync, setCloudSync] = useState<CloudSyncState>(() => {
+    const hasToken = Boolean(localStorage.getItem('media_management_cloud_token'));
+    return {
+      enabled: hasToken,
+      status: hasToken ? 'idle' : 'error',
+      message: hasToken ? '已登录云同步账号，等待同步。' : '未连接云同步。配置 Vercel + Supabase 后，登录即可同步多端数据。',
+      updatedAt: localStorage.getItem('media_management_cloud_updated_at'),
+    };
+  });
+
+  const buildCloudPayload = (): CloudPayload => ({
+    version: '1.2.0',
+    exportedAt: new Date().toISOString(),
+    mediaItems,
+    collections,
+    habits,
+    checkInLogs,
+    tagDefinitions,
+  });
+
+  const hasLocalUserData = () => {
+    return mediaItems.length > 0 || collections.length > 0 || checkInLogs.length > 0 || tagDefinitions.length > 0;
+  };
+
+  const hasStoredUserData = () => {
+    if (!currentUser) return false;
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    return Boolean(
+      localStorage.getItem(getStorageKey('items', currentUser, isAdm)) ||
+      localStorage.getItem(getStorageKey('collections', currentUser, isAdm)) ||
+      localStorage.getItem(getStorageKey('logs', currentUser, isAdm)) ||
+      localStorage.getItem(getStorageKey('tags', currentUser, isAdm))
+    );
+  };
+
+  const applyCloudPayload = (payload: Partial<CloudPayload>) => {
+    if (Array.isArray(payload.mediaItems)) setMediaItems(payload.mediaItems);
+    if (Array.isArray(payload.collections)) setCollections(payload.collections);
+    if (Array.isArray(payload.habits)) setHabits(payload.habits);
+    if (Array.isArray(payload.checkInLogs)) setCheckInLogs(payload.checkInLogs);
+    if (Array.isArray(payload.tagDefinitions)) setTagDefinitions(payload.tagDefinitions);
+  };
+
+  const getCloudToken = () => localStorage.getItem('media_management_cloud_token') || '';
+
+  const handlePullCloud = async () => {
+    const token = getCloudToken();
+    if (!token) {
+      setCloudSync({
+        enabled: false,
+        status: 'error',
+        message: '未登录云同步账号，请重新登录。',
+      });
+      return;
+    }
+    setCloudSync(prev => ({ ...prev, enabled: true, status: 'syncing', message: '正在从云端读取数据...' }));
+    try {
+      const { response, data } = await apiJson<{
+        success?: boolean;
+        data?: CloudPayload | null;
+        updatedAt?: string | null;
+        error?: string;
+      }>('/api/sync/data', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || '读取云端数据失败。');
+      }
+      if (!data.data) {
+        setCloudSync({
+          enabled: true,
+          status: 'synced',
+          message: '云端暂无数据，可先上传本机数据。',
+          updatedAt: null,
+        });
+        return;
+      }
+      applyCloudPayload(data.data);
+      if (data.updatedAt) {
+        localStorage.setItem('media_management_cloud_updated_at', data.updatedAt);
+      }
+      setCloudSync({
+        enabled: true,
+        status: 'synced',
+        message: '已从云端恢复数据到本机。',
+        updatedAt: data.updatedAt,
+      });
+    } catch (error: any) {
+      setCloudSync({
+        enabled: Boolean(token),
+        status: 'error',
+        message: error.message || '读取云端数据失败。',
+      });
+    }
+  };
+
+  const handlePushCloud = async (force = false) => {
+    const token = getCloudToken();
+    if (!token) {
+      setCloudSync({
+        enabled: false,
+        status: 'error',
+        message: '未登录云同步账号，请重新登录。',
+      });
+      return;
+    }
+    setCloudSync(prev => ({ ...prev, enabled: true, status: 'syncing', message: '正在上传本机数据到云端...' }));
+    try {
+      const baseUpdatedAt = localStorage.getItem('media_management_cloud_updated_at');
+      const { response, data } = await apiJson<{
+        success?: boolean;
+        updatedAt?: string;
+        error?: string;
+        conflict?: { updatedAt?: string };
+      }>('/api/sync/data', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          payload: buildCloudPayload(),
+          baseUpdatedAt,
+          force,
+        }),
+      });
+      if (response.status === 409) {
+        setCloudSync({
+          enabled: true,
+          status: 'conflict',
+          message: data?.error || '云端数据已变化，请选择从云端恢复或确认用本机覆盖云端。',
+          updatedAt: data?.conflict?.updatedAt,
+        });
+        return;
+      }
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || '上传云端数据失败。');
+      }
+      if (data.updatedAt) {
+        localStorage.setItem('media_management_cloud_updated_at', data.updatedAt);
+      }
+      setCloudSync({
+        enabled: true,
+        status: 'synced',
+        message: '本机数据已同步到云端。',
+        updatedAt: data.updatedAt,
+      });
+    } catch (error: any) {
+      setCloudSync({
+        enabled: Boolean(token),
+        status: 'error',
+        message: error.message || '上传云端数据失败。',
+      });
+    }
+  };
+
+  useEffect(() => {
+    const token = getCloudToken();
+    if (!currentUser || !token) {
+      setCloudSync(prev => ({
+        ...prev,
+        enabled: false,
+        status: 'error',
+        message: '未连接云同步。配置 Vercel + Supabase 后，登录即可同步多端数据。',
+      }));
+      return;
+    }
+
+    let cancelled = false;
+    const bootstrapCloudSync = async () => {
+      setCloudSync(prev => ({ ...prev, enabled: true, status: 'syncing', message: '正在检查云端数据...' }));
+      try {
+        const { response, data } = await apiJson<{
+          success?: boolean;
+          data?: CloudPayload | null;
+          updatedAt?: string | null;
+          error?: string;
+        }>('/api/sync/data', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+        if (!response.ok || !data?.success) {
+          throw new Error(data?.error || '云同步不可用，本机数据仍会保留。');
+        }
+
+        const localHasData = hasLocalUserData() || hasStoredUserData();
+        if (data.data && !localHasData) {
+          applyCloudPayload(data.data);
+          if (data.updatedAt) localStorage.setItem('media_management_cloud_updated_at', data.updatedAt);
+          setCloudSync({
+            enabled: true,
+            status: 'synced',
+            message: '已自动从云端加载数据。',
+            updatedAt: data.updatedAt,
+          });
+          return;
+        }
+
+        if (!data.data && localHasData) {
+          setCloudSync({
+            enabled: true,
+            status: 'idle',
+            message: '云端暂无数据。本机已有记录，请在“数据相关”页确认后手动上传到云端。',
+            updatedAt: null,
+          });
+          return;
+        }
+
+        if (data.data && localHasData) {
+          setCloudSync({
+            enabled: true,
+            status: 'conflict',
+            message: '本机和云端都有数据。为避免覆盖，请手动选择恢复云端或上传本机数据。',
+            updatedAt: data.updatedAt,
+          });
+          return;
+        }
+
+        setCloudSync({
+          enabled: true,
+          status: 'synced',
+          message: '云同步已连接，当前暂无数据。',
+          updatedAt: data.updatedAt,
+        });
+      } catch (error: any) {
+        if (cancelled) return;
+        setCloudSync({
+          enabled: true,
+          status: 'error',
+          message: error.message || '云同步不可用，本机数据仍会保留。',
+        });
+      }
+    };
+
+    bootstrapCloudSync();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
 
   const handleUpdateAccount = (newUsername: string, newPassword?: string) => {
     const usersData = localStorage.getItem('media_management_users');
@@ -623,11 +889,13 @@ export default function App() {
     collections: Collection[];
     habits: CheckInHabit[];
     checkInLogs: CheckInLog[];
+    tagDefinitions?: TagDefinition[];
   }) => {
     if (data.mediaItems) setMediaItems(data.mediaItems);
     if (data.collections) setCollections(data.collections);
     if (data.habits) setHabits(data.habits);
     if (data.checkInLogs) setCheckInLogs(data.checkInLogs);
+    if (data.tagDefinitions) setTagDefinitions(data.tagDefinitions);
   };
 
   const handleResetToDefault = () => {
@@ -796,7 +1064,7 @@ export default function App() {
                 <span>用户: {currentUser}</span>
                 {isAdmin && (
                   <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0.5 font-sans font-semibold">
-                    👑 管理员
+                    管理员
                   </span>
                 )}
               </span>
@@ -805,7 +1073,10 @@ export default function App() {
             {/* Persistent User Guide Button */}
             <button
               data-guide="help-btn"
-              onClick={() => setShowUserGuide(true)}
+              onClick={() => {
+                setUserGuideInitialTab('features');
+                setShowUserGuide(true);
+              }}
               className="p-2 rounded-none border border-[#E6E0D5] dark:border-zinc-800 text-[#4A3B32] dark:text-[#DDDAC4] hover:bg-[#4A3B32]/10 dark:hover:bg-[#DDDAC4]/10 transition-colors cursor-pointer flex items-center justify-center"
               title="查看使用指引"
             >
@@ -842,18 +1113,20 @@ export default function App() {
             >
               <div className="flex items-center gap-2 text-[#4A3B32] dark:text-[#DDDAC4]">
                 <Sparkles size={14} className="shrink-0 text-amber-400 animate-pulse" />
-                <span>👋 欢迎使用媒体管理！首次体验建议查看 8 步功能指引，快速掌握书影音录入与合集归档。</span>
+                <span>首次使用请先查看数据说明：当前会先保存到本机，重要记录请在“数据相关”里导出备份或连接云同步。</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => {
                     setShowGuidePrompt(false);
+                    localStorage.setItem('media_management_onboarding_completed', 'true');
+                    setUserGuideInitialTab('data');
                     setShowUserGuide(true);
                   }}
                   className="px-3 py-1 bg-[#4A3B32] dark:bg-[#DDDAC4] text-white dark:text-[#111214] font-bold text-[11px] uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1"
                 >
                   <HelpCircle size={12} />
-                  <span>查看指引</span>
+                  <span>查看数据指引</span>
                 </button>
                 <button
                   onClick={() => {
@@ -1327,11 +1600,15 @@ export default function App() {
               collections={collections}
               habits={habits}
               checkInLogs={checkInLogs}
+              tagDefinitions={tagDefinitions}
               onImport={handleImportBackup}
               onReset={handleResetToDefault}
               onBulkAddItems={handleBulkAddItems}
               darkMode={darkMode}
               isAdmin={isAdmin && ['echoingstill', 'admin'].includes((currentUser || '').toLowerCase())}
+              cloudSync={cloudSync}
+              onPullCloud={handlePullCloud}
+              onPushCloud={handlePushCloud}
             />
           </div>
         )}
@@ -1458,6 +1735,7 @@ export default function App() {
       <UserGuideModal
         isOpen={showUserGuide}
         onClose={() => setShowUserGuide(false)}
+        initialTab={userGuideInitialTab}
         onSwitchTab={(tab) => setSelectedTab(tab)}
         onOpenAddModal={(open) => setShowAddModal(open)}
         onClearSampleData={handleClearSampleData}

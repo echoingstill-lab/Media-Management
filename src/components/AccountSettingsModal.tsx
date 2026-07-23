@@ -110,7 +110,7 @@ export default function AccountSettingsModal({
 
         {error && (
           <div className="p-3 text-xs bg-red-500/10 border border-red-500/20 text-red-400">
-            ⚠️ {error}
+            {error}
           </div>
         )}
 

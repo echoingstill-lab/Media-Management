@@ -442,7 +442,7 @@ export default function CollectionManager({
                                   </div>
                                   <div className="space-y-1">
                                     <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1">
-                                      <span>📁</span>
+                                      <Folder size={12} className="shrink-0 text-zinc-400" />
                                       <span className="truncate group-hover:text-[#4A3B32] dark:group-hover:text-[#DDDAC4] transition-colors">{subCol.name}</span>
                                     </div>
                                     <p className="text-[10px] text-zinc-400 truncate line-clamp-1">{subCol.description || '无介绍。'}</p>

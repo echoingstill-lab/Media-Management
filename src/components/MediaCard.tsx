@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square, CheckCheck } from 'lucide-react';
+import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square, CheckCheck, Heart, ThumbsDown } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { generateSvgCover, deduplicateLogs } from '../utils/helpers';
 
@@ -285,7 +285,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
           title={isLiked ? "极力推荐" : "评价一般"}
           className="absolute top-3 right-3 z-25 flex items-center justify-center hover:scale-120 transition-transform filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
         >
-          <span className="text-base select-none">{isLiked ? '❤️' : '💢'}</span>
+          {isLiked ? <Heart size={18} fill="currentColor" /> : <ThumbsDown size={18} />}
         </div>
       ) : null}
     </div>

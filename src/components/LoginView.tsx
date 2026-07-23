@@ -15,6 +15,10 @@ const USERS_STORAGE_KEY = 'media_management_users';
 const SAVED_USERS_STORAGE_KEY = 'media_management_saved_users';
 const RESERVED_USERS = new Set(['echoingstill', 'admin']);
 
+function isReservedUser(user: string): boolean {
+  return RESERVED_USERS.has(user);
+}
+
 function readStoredUsers(): Record<string, string> {
   try {
     const data = localStorage.getItem(USERS_STORAGE_KEY);
@@ -129,6 +133,11 @@ export default function LoginView({ onLogin }: LoginViewProps) {
     setLoading(true);
 
     if (mode === 'register') {
+      if (isReservedUser(normalizedUser)) {
+        setError('系统保留账号不能注册，请切换到登录。');
+        setLoading(false);
+        return;
+      }
       if (password !== confirmPassword) {
         setError('两次输入的密码不一致');
         setLoading(false);
@@ -156,13 +165,24 @@ export default function LoginView({ onLogin }: LoginViewProps) {
         onLogin(cloud.username || username.trim(), isRegisteredAdmin);
       }, 800);
     } else {
+      const storedPass = users[normalizedUser] || (normalizedUser === 'echoingstill' ? 'Echoingstill' : null);
+      if (isReservedUser(normalizedUser)) {
+        if (!storedPass || storedPass !== password) {
+          setError('用户名或密码错误');
+          setLoading(false);
+          return;
+        }
+        onLogin(normalizedUser, true);
+        setLoading(false);
+        return;
+      }
+
       const cloud = await tryCloudAuth('/api/sync/login', normalizedUser, password);
       if (cloud.available && cloud.error) {
         setError(cloud.error);
         setLoading(false);
         return;
       }
-      const storedPass = users[normalizedUser] || (normalizedUser === 'echoingstill' ? 'Echoingstill' : null);
       if (!cloud.available && (!storedPass || storedPass !== password)) {
         setError('用户名或密码错误');
         setLoading(false);

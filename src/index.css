@@ -20,8 +20,13 @@
 }
 
 @layer base {
+  html {
+    color-scheme: dark;
+    background: #111214;
+  }
+
   body {
-    @apply font-sans antialiased bg-[#FBF9F3] dark:bg-[#111214] text-[15px] text-zinc-900 dark:text-zinc-100;
+    @apply font-sans antialiased bg-[#111214] text-[15px] text-zinc-100;
   }
   
   /* 强制所有中文字符使用 Noto Serif SC，防止被某些无衬线默认值干扰 */
@@ -40,31 +45,18 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: #d4d4d8; /* light mode: zinc-300 */
+    background-color: #3f3f46;
     border-radius: 9999px;
     border: 1px solid transparent;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: #a1a1aa; /* light mode: zinc-400 */
-  }
-
-  /* Dark mode scrollbar thumb */
-  .dark ::-webkit-scrollbar-thumb {
-    background-color: #3f3f46; /* dark mode: zinc-700 */
-  }
-
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: #52525b; /* dark mode: zinc-600 */
+    background-color: #52525b;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #d4d4d8 transparent; /* zinc-300 */
-  }
-
-  .dark * {
-    scrollbar-color: #3f3f46 transparent; /* zinc-700 */
+    scrollbar-color: #3f3f46 transparent;
   }
 }
 

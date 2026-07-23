@@ -153,11 +153,7 @@ export default function App() {
     }
   });
 
-  const [darkMode] = useState<boolean>(true);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-  }, [darkMode]);
+  const darkMode = true;
 
   // --- Tag System State ---
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(() => {
@@ -1029,16 +1025,12 @@ export default function App() {
 
   // If user is not authenticated, render LoginView
   if (!currentUser) {
-    return <LoginView onLogin={handleLogin} darkMode={darkMode} />;
+    return <LoginView onLogin={handleLogin} />;
   }
 
   return (
     <div
-      className={`min-h-screen transition-all duration-300 font-serif ${
-        darkMode
-          ? 'dark bg-[#111214] text-[#e3e4e6] selection:bg-zinc-800'
-          : 'bg-[#FAF8F5] text-[#2B1E19] selection:bg-zinc-200'
-      }`}
+      className="dark min-h-screen transition-all duration-300 font-serif bg-[#111214] text-[#e3e4e6] selection:bg-zinc-800"
     >
       {/* Decorative Minimal Ambient Line */}
       <div className="h-[1px] w-full bg-zinc-200 dark:bg-zinc-800"></div>

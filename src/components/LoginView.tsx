@@ -9,7 +9,6 @@ import { apiJson } from '../utils/api';
 
 interface LoginViewProps {
   onLogin: (username: string, isAdmin?: boolean) => void;
-  darkMode: boolean;
 }
 
 const USERS_STORAGE_KEY = 'media_management_users';
@@ -54,7 +53,8 @@ function getVisibleStoredUsers(): string[] {
     .filter(user => user && !RESERVED_USERS.has(user));
 }
 
-export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
+export default function LoginView({ onLogin }: LoginViewProps) {
+  const darkMode = true;
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

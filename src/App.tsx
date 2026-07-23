@@ -155,6 +155,10 @@ export default function App() {
 
   const [darkMode] = useState<boolean>(true);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
   // --- Tag System State ---
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>(() => {
     if (!initialUser || initialUser === 'Guest') return [];

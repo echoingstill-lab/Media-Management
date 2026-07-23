@@ -182,7 +182,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
   return (
     <div className={`min-h-screen flex items-center justify-center p-6 transition-all duration-300 ${
       darkMode 
-        ? 'bg-[#111214] text-[#e3e4e6] selection:bg-zinc-800' 
+        ? 'dark bg-[#111214] text-[#e3e4e6] selection:bg-zinc-800'
         : 'bg-[#fbf9f3] text-[#2B1E19] selection:bg-[#e4ded5]'
     }`}>
       
@@ -284,7 +284,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
               </div>
               {knownUsers.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <p className="text-[10px] opacity-50">本浏览器保存的账号</p>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">本浏览器保存的账号名</p>
                   <div className="flex flex-wrap gap-1.5">
                     {knownUsers.map(user => (
                       <button
@@ -369,8 +369,8 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
 
         {/* Footer info */}
         <div className="space-y-2 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10 text-center font-serif">
-          <p className="text-[10px] opacity-60 leading-relaxed">
-            登录页只显示本浏览器保存过的账号名，不是云端用户列表。换浏览器或换设备时，请登录同一云同步账号恢复数据。
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+            账号快捷项只保存在当前浏览器。换浏览器或换设备时，登录同一云同步账号即可恢复数据。
           </p>
         </div>
 

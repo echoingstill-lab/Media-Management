@@ -40,6 +40,57 @@
 
 ---
 
+## 先行版数据策略
+
+当前公开体验版采用“GitHub Pages 前端 + 本地浏览器数据 + 可选 Vercel API”的方式运行。
+
+### 本地数据保存
+
+媒体档案、合集、打卡、标签和本地账号信息默认保存在当前浏览器的 `localStorage` 中。页面更新通常不会删除这些数据，因为代码更新和浏览器本地存储是分开的。
+
+需要注意：
+- 清理浏览器站点数据、使用无痕模式、更换浏览器、更换设备或更换域名后，可能读不到原来的记录。
+- 当前账号只是当前浏览器里的数据分区，不是云端安全账号系统。
+- 重要记录请在“数据相关”页面定期导出 JSON 备份。
+
+### 多用户限制
+
+当前多用户仅适合小范围测试，例如自己和朋友分别在各自设备上使用。不同用户的数据不会上传到 GitHub Pages，也不会自动同步到其他设备。
+
+同一台电脑同一浏览器中，懂技术的用户可以通过浏览器开发工具看到本地存储内容，因此当前版本不能作为严格隐私隔离或多人协作系统。
+
+### Pages 与 Vercel 的分工
+
+- GitHub Pages：托管公开前端页面，适合发给朋友体验基础流程。
+- 浏览器本地存储：保存媒体库、合集、打卡和标签数据。
+- Vercel API：可选后端，用于链接解析、AI 调用和公共解析次数限制。
+
+如果 Pages 前端需要调用 Vercel API，请在公开仓库的 GitHub Actions Variables 中设置：
+
+```env
+VITE_API_BASE_URL="https://your-vercel-project.vercel.app"
+```
+
+同时在 Vercel 环境变量中设置允许跨域来源：
+
+```env
+CORS_ORIGINS="https://echoingstill-lab.github.io"
+```
+
+未配置 `VITE_API_BASE_URL` 时，前端会默认请求同域 `/api`。这适合 Vercel 自己部署前后端一体版本，但不适合 GitHub Pages。
+
+### 后续服务器版本
+
+如果后续需要真正的多人账号、云端同步和权限隔离，需要引入服务器数据库。推荐方向：
+
+- 前端继续部署在 Pages 或 Vercel。
+- 后端部署在 Vercel、Cloud Run 或自有服务器。
+- 数据库使用 PostgreSQL、Supabase、Firebase 或 MongoDB。
+- 后端提供登录鉴权、媒体数据 CRUD、备份导入导出、链接解析 API。
+- 每条媒体数据按用户 ID 归属，服务端校验权限，而不是依赖前端判断。
+
+---
+
 ## 推荐解析站点
 
 进行作品录入时，粘贴以下平台链接可获得最佳解析效果：
@@ -110,6 +161,8 @@ SILICONFLOW_API_KEY="..."
 AI_DAILY_LIMIT="50"
 ADMIN_TOKEN="..."
 APP_URL="..."
+VITE_API_BASE_URL=""
+CORS_ORIGINS="https://echoingstill-lab.github.io"
 ```
 
 参数说明：
@@ -117,6 +170,8 @@ APP_URL="..."
 - `AI_DAILY_LIMIT`：公共 AI 解析每日配额次数限制。
 - `ADMIN_TOKEN`：管理员密钥，用于限额豁免与管理员接口保护。正式部署时请设置为高强度随机字符串。
 - `APP_URL`：应用部署的域名地址。
+- `VITE_API_BASE_URL`：GitHub Pages 前端调用 Vercel/API 服务时使用的后端地址。
+- `CORS_ORIGINS`：允许调用 API 的前端来源，多个来源用英文逗号分隔。
 
 ---
 
@@ -127,3 +182,4 @@ APP_URL="..."
 - 构建指令：`npm run build`
 - 静态产物目录：`dist`
 - 部署前请务必在服务器环境变量中设置必要的 API 密钥与 `ADMIN_TOKEN`。
+- 如果使用 GitHub Pages 作为前端入口，并希望保留链接解析能力，请设置公开仓库变量 `VITE_API_BASE_URL` 指向 Vercel 部署地址。

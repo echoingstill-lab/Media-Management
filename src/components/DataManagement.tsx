@@ -417,6 +417,38 @@ export default function DataManagement({
 
   return (
     <div data-guide="data-management" className="space-y-8 font-serif">
+      <div className={`border p-5 rounded-none transition-all duration-300 ${
+        darkMode ? 'bg-[#191b1e] border-[#2d3137]' : 'bg-white border-[#E6E0D5] shadow-sm'
+      }`}>
+        <div className="space-y-1 mb-4">
+          <h2 className="text-lg font-serif font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
+            先行版数据说明
+          </h2>
+          <p className="text-[10.5px] uppercase tracking-wide text-zinc-400">
+            Pages 测试版采用本地优先数据策略
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs leading-relaxed">
+          <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
+            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">数据存放位置</p>
+            <p className="text-zinc-500 dark:text-zinc-400">
+              媒体档案、合集、打卡和标签保存在当前浏览器本地存储中，不会上传到 GitHub Pages。
+            </p>
+          </div>
+          <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
+            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">更新与备份</p>
+            <p className="text-zinc-500 dark:text-zinc-400">
+              页面更新通常会保留本机数据；清理站点数据、更换浏览器或更换域名后可能读不到旧记录。
+            </p>
+          </div>
+          <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
+            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">多人使用限制</p>
+            <p className="text-zinc-500 dark:text-zinc-400">
+              当前账号只是本浏览器内的数据分区，不是云端安全账号。重要数据请定期导出 JSON。
+            </p>
+          </div>
+        </div>
+      </div>
       
       {/* 1. Core Backup & Restore */}
       <div className={`border p-6 rounded-none transition-all duration-300 ${

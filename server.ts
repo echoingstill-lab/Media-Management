@@ -13,6 +13,34 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+const allowedCorsOrigins = new Set(
+  [
+    process.env.APP_URL,
+    process.env.CORS_ORIGINS,
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://echoingstill-lab.github.io",
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim().replace(/\/+$/u, ""))
+    .filter(Boolean),
+);
+
+app.use((req, res, next) => {
+  const origin = req.get("origin")?.replace(/\/+$/u, "");
+  if (origin && allowedCorsOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-admin-token");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  }
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  return next();
+});
+
 app.use(express.json({ limit: "15mb" }));
 
 // Initialize Firebase Admin

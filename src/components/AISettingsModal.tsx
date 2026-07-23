@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Settings, X, Key, Info, Zap, ShieldCheck } from 'lucide-react';
+import { apiFetch } from '../utils/api';
 
 interface AISettings {
   provider: 'gemini' | 'openai' | 'siliconflow';
@@ -38,7 +39,7 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      fetch('/api/admin/limit')
+      apiFetch('/api/admin/limit')
         .then((res) => res.json())
         .then((data) => {
           if (data && typeof data.limit === 'number') {
@@ -67,7 +68,7 @@ export default function AISettingsModal({ isOpen, onClose, isAdmin }: AISettings
     }
     try {
       sessionStorage.setItem('admin_token', adminTokenInput.trim());
-      const res = await fetch('/api/admin/limit', {
+      const res = await apiFetch('/api/admin/limit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

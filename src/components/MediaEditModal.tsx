@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users, MapPin, Settings } from 'lucide-react';
 import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
 import { generateSvgCover, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
+import { apiFetch } from '../utils/api';
 import FeatureGuideBanner from './FeatureGuideBanner';
 
 interface MediaEditModalProps {
@@ -168,7 +169,7 @@ export default function MediaEditModal({
       const clientId = localStorage.getItem('media_archive_client_id');
       const adminToken = sessionStorage.getItem('admin_token') || '';
 
-      const res = await fetch('/api/parse-link', {
+      const res = await apiFetch('/api/parse-link', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

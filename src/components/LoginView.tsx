@@ -13,6 +13,8 @@ interface LoginViewProps {
 }
 
 const USERS_STORAGE_KEY = 'media_management_users';
+const SAVED_USERS_STORAGE_KEY = 'media_management_saved_users';
+const RESERVED_USERS = new Set(['echoingstill', 'admin']);
 
 function readStoredUsers(): Record<string, string> {
   try {
@@ -28,8 +30,30 @@ function readStoredUsers(): Record<string, string> {
   }
 }
 
+function normalizeUsername(user: string): string {
+  return user.trim().toLowerCase();
+}
+
+function readSavedUsernames(): string[] {
+  try {
+    const data = localStorage.getItem(SAVED_USERS_STORAGE_KEY);
+    const users = data ? JSON.parse(data) : [];
+    return Array.isArray(users)
+      ? users
+          .filter((user): user is string => typeof user === 'string')
+          .map(normalizeUsername)
+          .filter(user => user && !RESERVED_USERS.has(user))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function getVisibleStoredUsers(users = readStoredUsers()): string[] {
-  return Object.keys(users).filter(user => user !== 'echoingstill' && user !== 'admin');
+  return Array.from(new Set([
+    ...readSavedUsernames(),
+    ...Object.keys(users).map(normalizeUsername),
+  ])).filter(user => user && !RESERVED_USERS.has(user));
 }
 
 export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
@@ -47,12 +71,22 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
     return readStoredUsers();
   };
 
+  const saveKnownUser = (user: string) => {
+    const normalized = normalizeUsername(user);
+    if (!normalized) return;
+    const saved = Array.from(new Set([...readSavedUsernames(), normalized]))
+      .filter(user => !RESERVED_USERS.has(user));
+    localStorage.setItem(SAVED_USERS_STORAGE_KEY, JSON.stringify(saved));
+    setKnownUsers(getVisibleStoredUsers());
+  };
+
   const saveUser = (user: string, pass: string) => {
     const users = getStoredUsers();
-    const normalized = user.trim().toLowerCase();
+    const normalized = normalizeUsername(user);
     if (!normalized) return;
     users[normalized] = pass;
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    saveKnownUser(normalized);
     setKnownUsers(getVisibleStoredUsers(users));
   };
 
@@ -94,7 +128,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
     }
 
     const users = getStoredUsers();
-    const normalizedUser = username.trim().toLowerCase();
+    const normalizedUser = normalizeUsername(username);
     setLoading(true);
 
     if (mode === 'register') {
@@ -114,7 +148,11 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         setLoading(false);
         return;
       }
-      saveUser(username.trim(), password);
+      if (cloud.available) {
+        saveKnownUser(cloud.username || username.trim());
+      } else {
+        saveUser(username.trim(), password);
+      }
       const isRegisteredAdmin = normalizedUser === 'echoingstill';
       setSuccessMsg(cloud.available ? '云端注册成功！正在自动登录...' : '本地注册成功！正在自动登录...');
       setTimeout(() => {
@@ -134,7 +172,9 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         return;
       }
       if (cloud.available) {
-        saveUser(cloud.username || username.trim(), password);
+        saveKnownUser(cloud.username || username.trim());
+      } else {
+        saveKnownUser(username.trim());
       }
       const isAdminUser = normalizedUser === 'echoingstill' || normalizedUser === 'admin';
       onLogin(cloud.username || username.trim(), isAdminUser);
@@ -246,21 +286,24 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                 />
               </div>
               {knownUsers.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {knownUsers.map(user => (
-                    <button
-                      key={user}
-                      type="button"
-                      onClick={() => setUsername(user)}
-                      className={`px-2 py-1 text-[10px] border rounded-none transition-colors ${
-                        darkMode
-                          ? 'border-[#2e3238] text-zinc-400 hover:text-zinc-100 hover:border-zinc-600'
-                          : 'border-[#d3cbbe] text-zinc-500 hover:text-[#2B1E19] hover:border-zinc-500'
-                      }`}
-                    >
-                      {user}
-                    </button>
-                  ))}
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[10px] opacity-50">本浏览器保存的账号</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {knownUsers.map(user => (
+                      <button
+                        key={user}
+                        type="button"
+                        onClick={() => setUsername(user)}
+                        className={`px-2 py-1 text-[10px] border rounded-none transition-colors ${
+                          darkMode
+                            ? 'border-[#2e3238] text-zinc-400 hover:text-zinc-100 hover:border-zinc-600'
+                            : 'border-[#d3cbbe] text-zinc-500 hover:text-[#2B1E19] hover:border-zinc-500'
+                        }`}
+                      >
+                        {user}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -330,7 +373,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         {/* Footer info */}
         <div className="space-y-2 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10 text-center font-serif">
           <p className="text-[10px] opacity-60 leading-relaxed">
-            这里会记住本浏览器注册过的账号。换浏览器或换设备时，需要先开启云同步或导入备份。
+            登录页只显示本浏览器保存过的账号名，不是云端用户列表。换浏览器或换设备时，请登录同一云同步账号恢复数据。
           </p>
         </div>
 

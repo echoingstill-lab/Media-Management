@@ -142,13 +142,16 @@ function parseDoubanUrl(input: string): { id: string; section: "book" | "movie" 
 }
 
 function cleanDoubanTitle(raw: string): string {
-  return decodeHtml(raw)
+  const withoutSuffix = decodeHtml(raw)
     .replace(/\s*-\s*(图书|电影|电视剧|唱片|音乐|游戏)\s*$/u, "")
     .replace(/\s*\(豆瓣\)\s*$/u, "")
     .replace(/\s*-\s*豆瓣\s*$/u, "")
+    .replace(/‎/g, "")
     .replace(/\s*\((?:19|20)\d{2}\)\s*$/u, "")
     .replace(/\s+/g, " ")
     .trim();
+  const chinesePrefix = withoutSuffix.match(/^([\u4e00-\u9fff][\u4e00-\u9fff·、，。！？《》（）\s]+?)\s+[A-Za-z0-9]/u);
+  return (chinesePrefix?.[1] || withoutSuffix).trim();
 }
 
 function inferDoubanType(section: string, title: string, description: string): ParsedMedia["type"] {
@@ -176,31 +179,52 @@ async function parseDoubanSubject(input: string): Promise<ParsedMedia | null> {
   if (!fragments.length) return null;
   const html = fragments.find(fragment => getMetaContent(fragment, "og:image")) || fragments[0];
   const combined = fragments.join("\n");
+  const movieAbstract = douban.section === "movie" ? await fetchDoubanMovieAbstract(douban.id) : null;
   const rawTitle = getMetaContent(html, "og:title") || getTitleTag(html);
-  const title = cleanDoubanTitle(rawTitle);
+  const title = cleanDoubanTitle(rawTitle && rawTitle !== "豆瓣" ? rawTitle : movieAbstract?.title || "");
   if (!title) return null;
   const description = stripHtml(getMetaContent(html, "og:description") || getMetaContent(html, "description"));
   const cover = normalizeImageUrl(getMetaContent(html, "og:image") || getMetaContent(html, "image"));
   const creator =
+    (Array.isArray(movieAbstract?.directors) ? movieAbstract.directors.join(" / ") : "") ||
     getInfoValue(combined, "作者") ||
     getInfoValue(combined, "导演") ||
     getInfoValue(combined, "表演者") ||
     getInfoValue(combined, "开发商") ||
     "";
-  const ratingText = getMetaContent(html, "ratingValue") || combined.match(/ratingValue["']?\s*[:=]\s*["']?(\d+(?:\.\d+)?)/i)?.[1] || "";
+  const ratingText = movieAbstract?.rate || getMetaContent(html, "ratingValue") || combined.match(/ratingValue["']?\s*[:=]\s*["']?(\d+(?:\.\d+)?)/i)?.[1] || "";
   const rating = Number(ratingText) || null;
   const keywords = getMetaContent(html, "keywords");
-  const tags = keywords ? keywords.split(/[,，/]/).map(tag => tag.trim()).filter(Boolean).slice(0, 8) : [];
+  const tags = Array.isArray(movieAbstract?.types)
+    ? movieAbstract.types.map(String).filter(Boolean)
+    : keywords ? keywords.split(/[,，/]/).map(tag => tag.trim()).filter(Boolean).slice(0, 8) : [];
   return {
     title,
-    type: inferDoubanType(douban.section, rawTitle, description),
+    type: movieAbstract?.is_tv ? "tv" : inferDoubanType(douban.section, rawTitle, description),
     creator,
     coverUrl: isValidImageUrl(cover) ? cover : "",
-    description,
+    description: description || movieAbstract?.short_comment?.content || "",
     tags,
     rating,
-    releaseYear: getInfoValue(combined, "出版年") || getInfoValue(combined, "发行时间") || extractYear(combined),
+    releaseYear: movieAbstract?.release_year || getInfoValue(combined, "出版年") || getInfoValue(combined, "发行时间") || extractYear(combined),
   };
+}
+
+async function fetchDoubanMovieAbstract(id: string): Promise<any | null> {
+  try {
+    const response = await fetch(`https://movie.douban.com/j/subject_abstract?subject_id=${id}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Referer": `https://movie.douban.com/subject/${id}/`,
+      },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.r === 0 ? data.subject : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseSteamUrl(input: string): { appId: string; slug: string } | null {

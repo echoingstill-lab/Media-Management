@@ -49,11 +49,9 @@ function readSavedUsernames(): string[] {
   }
 }
 
-function getVisibleStoredUsers(users = readStoredUsers()): string[] {
-  return Array.from(new Set([
-    ...readSavedUsernames(),
-    ...Object.keys(users).map(normalizeUsername),
-  ])).filter(user => user && !RESERVED_USERS.has(user));
+function getVisibleStoredUsers(): string[] {
+  return Array.from(new Set(readSavedUsernames()))
+    .filter(user => user && !RESERVED_USERS.has(user));
 }
 
 export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
@@ -87,7 +85,6 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
     users[normalized] = pass;
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
     saveKnownUser(normalized);
-    setKnownUsers(getVisibleStoredUsers(users));
   };
 
   const tryCloudAuth = async (endpoint: '/api/sync/login' | '/api/sync/register', normalizedUser: string, rawPassword: string) => {

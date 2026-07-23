@@ -18,6 +18,7 @@ Create an in-app animated guide for first-time and returning users. The guide sh
 6. Mark progress and completion from the monthly list.
 7. Review the full archive and check-in calendar.
 8. Export or import local data.
+9. Understand that data is saved in the current browser first, and cloud sync is only active after the deployment owner configures the backend.
 
 The guide should feel like a polished product walkthrough, not a static help document.
 
@@ -35,7 +36,8 @@ Add these guide entry points:
 1. First visit after login or guest entry
    - Show a small welcome guide prompt after the main app loads.
    - Do not block the page immediately with a large modal unless the user clicks "Start".
-   - Store completion state locally, for example `media_management_onboarding_completed`.
+   - Store completion state per user locally, for example `media_management_onboarding_completed_<username>`.
+   - Switching accounts in the same browser should show the first-use data prompt again if that user has not completed it.
 
 2. Persistent help button
    - Add a small icon button in the header near AI settings/theme/logout.

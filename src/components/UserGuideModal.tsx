@@ -356,28 +356,28 @@ export default function UserGuideModal({
                 <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-3">
                   <div className="flex items-center gap-2 font-bold text-sm text-[#4A3B32] dark:text-[#DDDAC4]">
                     <Database size={16} className="text-emerald-600 dark:text-emerald-400" />
-                    <span>先确认数据保存方式</span>
+                    <span>先确认数据怎么保存</span>
                   </div>
                   <p className="text-zinc-600 dark:text-zinc-400">
-                    先行版采用本地优先策略：编辑时会先写入当前浏览器本地存储。配置云同步后，可把整份数据快照保存到云端，用于换设备或换浏览器恢复。
+                    普通使用时不用理解服务器配置。你只需要知道：数据先保存在当前浏览器；重要记录请导出备份；多设备使用时再开启云同步。
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
                     <div className="p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30">
-                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">1. 本地缓存</div>
+                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">1. 当前浏览器会保存</div>
                       <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
-                        不联网也能继续记录。清理浏览器站点数据、无痕模式或换浏览器时，可能读不到原记录。
+                        不联网也能继续记录。清理站点数据、使用无痕模式、换浏览器或换设备后，可能读不到旧记录。
                       </p>
                     </div>
                     <div className="p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30">
-                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">2. JSON 备份</div>
+                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">2. 重要记录要导出</div>
                       <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
-                        重要记录请定期在“数据相关”导出 JSON。更新前、换设备前、导入云端前都建议先导出。
+                        在“数据相关”里导出 JSON 文件。更新前、换设备前、覆盖云端前都建议先导出。
                       </p>
                     </div>
                     <div className="p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30">
-                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">3. 云端快照</div>
+                      <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4] mb-1">3. 云同步用于多设备</div>
                       <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
-                        登录后可把整份数据同步到云端。多端都有数据时不会自动覆盖，需要手动选择。
+                        开启后可以把整份数据保存到云端，用来换浏览器或换设备恢复。多端都有数据时需要手动选择。
                       </p>
                     </div>
                   </div>
@@ -397,10 +397,10 @@ export default function UserGuideModal({
 
                 <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#17181c] space-y-2">
                   <div className="font-bold text-xs text-[#4A3B32] dark:text-[#DDDAC4]">
-                    数据安全底线
+                    当前版本怎么理解
                   </div>
                   <p className="text-zinc-600 dark:text-zinc-400">
-                    云同步第一版保存的是整份 JSON 快照，不做多人实时协作。遇到本机和云端同时存在数据时，系统会提示选择，不会静默覆盖。
+                    现在做的是“本机优先 + 手动云同步”。本机和云端同时有数据时，系统会让你选择，不会自动覆盖。
                   </p>
                 </div>
 

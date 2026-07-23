@@ -12,6 +12,26 @@ interface LoginViewProps {
   darkMode: boolean;
 }
 
+const USERS_STORAGE_KEY = 'media_management_users';
+
+function readStoredUsers(): Record<string, string> {
+  try {
+    const data = localStorage.getItem(USERS_STORAGE_KEY);
+    const users = data ? JSON.parse(data) : {};
+    if (!users.echoingstill) {
+      users.echoingstill = 'Echoingstill';
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    }
+    return users;
+  } catch {
+    return { echoingstill: 'Echoingstill' };
+  }
+}
+
+function getVisibleStoredUsers(users = readStoredUsers()): string[] {
+  return Object.keys(users).filter(user => user !== 'echoingstill' && user !== 'admin');
+}
+
 export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
@@ -20,22 +40,20 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [knownUsers, setKnownUsers] = useState<string[]>(() => getVisibleStoredUsers());
 
   // Local-only account storage keeps user accounts saved locally
   const getStoredUsers = (): Record<string, string> => {
-    const data = localStorage.getItem('media_management_users');
-    const users = data ? JSON.parse(data) : {};
-    // Ensure default admin user Echoingstill exists
-    if (!users['echoingstill']) {
-      users['echoingstill'] = 'Echoingstill';
-    }
-    return users;
+    return readStoredUsers();
   };
 
   const saveUser = (user: string, pass: string) => {
     const users = getStoredUsers();
-    users[user.toLowerCase()] = pass;
-    localStorage.setItem('media_management_users', JSON.stringify(users));
+    const normalized = user.trim().toLowerCase();
+    if (!normalized) return;
+    users[normalized] = pass;
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    setKnownUsers(getVisibleStoredUsers(users));
   };
 
   const tryCloudAuth = async (endpoint: '/api/sync/login' | '/api/sync/register', normalizedUser: string, rawPassword: string) => {
@@ -114,6 +132,9 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         setError('用户名或密码错误');
         setLoading(false);
         return;
+      }
+      if (cloud.available) {
+        saveUser(cloud.username || username.trim(), password);
       }
       const isAdminUser = normalizedUser === 'echoingstill' || normalizedUser === 'admin';
       onLogin(cloud.username || username.trim(), isAdminUser);
@@ -224,6 +245,24 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
                   }`}
                 />
               </div>
+              {knownUsers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {knownUsers.map(user => (
+                    <button
+                      key={user}
+                      type="button"
+                      onClick={() => setUsername(user)}
+                      className={`px-2 py-1 text-[10px] border rounded-none transition-colors ${
+                        darkMode
+                          ? 'border-[#2e3238] text-zinc-400 hover:text-zinc-100 hover:border-zinc-600'
+                          : 'border-[#d3cbbe] text-zinc-500 hover:text-[#2B1E19] hover:border-zinc-500'
+                      }`}
+                    >
+                      {user}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Password */}
@@ -291,7 +330,7 @@ export default function LoginView({ onLogin, darkMode }: LoginViewProps) {
         {/* Footer info */}
         <div className="space-y-2 pt-4 border-t border-[#d3cbbe] dark:border-[#2e3238] relative z-10 text-center font-serif">
           <p className="text-[10px] opacity-60 leading-relaxed">
-            已配置云同步时，用户名会在云端保持唯一；未配置时使用本机账号与本地数据。
+            这里会记住本浏览器注册过的账号。换浏览器或换设备时，需要先开启云同步或导入备份。
           </p>
         </div>
 

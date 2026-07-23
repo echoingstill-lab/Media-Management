@@ -439,29 +439,29 @@ export default function DataManagement({
       }`}>
         <div className="space-y-1 mb-4">
           <h2 className="text-lg font-serif font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
-            先行版数据说明
+            我的数据怎么保存
           </h2>
           <p className="text-[10.5px] uppercase tracking-wide text-zinc-400">
-            Pages 测试版采用本地优先数据策略
+            普通使用时只需要记住这三件事
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs leading-relaxed">
           <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
-            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">数据存放位置</p>
+            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">1. 先保存在本机浏览器</p>
             <p className="text-zinc-500 dark:text-zinc-400">
-              媒体档案、合集、打卡和标签保存在当前浏览器本地存储中，不会上传到 GitHub Pages。
+              你录入的媒体、合集、打卡和标签会先保存在当前浏览器里。网络不好时也可以继续使用。
             </p>
           </div>
           <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
-            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">更新与备份</p>
+            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">2. 重要数据要导出备份</p>
             <p className="text-zinc-500 dark:text-zinc-400">
-              页面更新通常会保留本机数据；清理站点数据、更换浏览器或更换域名后可能读不到旧记录。
+              更新页面通常不会丢数据，但清理浏览器数据、换浏览器、换设备后可能读不到旧记录。重要记录请导出 JSON。
             </p>
           </div>
           <div className="border border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/70 dark:bg-zinc-950/25">
-            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">多人使用限制</p>
+            <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">3. 多设备需要云同步</p>
             <p className="text-zinc-500 dark:text-zinc-400">
-              未连接云同步时，账号只在当前浏览器内分区；连接云同步后，注册名云端唯一，并可手动同步整份数据快照。
+              只在本浏览器使用时不需要设置；如果要换设备自动恢复，需要先开启云同步。
             </p>
           </div>
         </div>
@@ -472,10 +472,10 @@ export default function DataManagement({
       }`}>
         <div className="space-y-1 mb-4">
           <h2 className="text-lg font-serif font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-100">
-            云端同步
+            云同步状态
           </h2>
           <p className="text-[10.5px] uppercase tracking-wide text-zinc-400">
-            本地优先，云端保存整份数据快照
+            没开启也不会影响本机记录
           </p>
         </div>
         <div className={`p-3 border text-xs leading-relaxed mb-4 ${
@@ -485,7 +485,7 @@ export default function DataManagement({
               : 'border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
             : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/25 text-zinc-500 dark:text-zinc-400'
         }`}>
-          {cloudSync?.message || '未连接云同步。配置 Vercel + Supabase 后，登录即可同步多端数据。'}
+          {cloudSync?.message || '当前未连接云同步。本机记录仍会保存；需要多设备同步时请联系部署者开启云同步。'}
           {cloudSync?.updatedAt && (
             <span className="block mt-1 text-[10px] opacity-70">
               云端更新时间：{new Date(cloudSync.updatedAt).toLocaleString()}

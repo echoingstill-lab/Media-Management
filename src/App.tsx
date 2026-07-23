@@ -41,6 +41,11 @@ type CloudSyncState = {
   updatedAt?: string | null;
 };
 
+function getOnboardingKey(username: string | null): string {
+  const normalized = username?.trim().toLowerCase() || 'guest';
+  return `media_management_onboarding_completed_${normalized}`;
+}
+
 export default function App() {
   // Helper for user-scoped storage key
   const getStorageKey = (keyType: 'items' | 'collections' | 'logs' | 'tags', username: string | null, isAdminUser: boolean) => {
@@ -337,18 +342,24 @@ export default function App() {
   const [showUserGuide, setShowUserGuide] = useState(false);
   const [userGuideInitialTab, setUserGuideInitialTab] = useState<'features' | 'triggers' | 'data'>('features');
   const [showAccountSettings, setShowAccountSettings] = useState(false);
-  const [showGuidePrompt, setShowGuidePrompt] = useState<boolean>(() => {
-    return localStorage.getItem('media_management_onboarding_completed') !== 'true';
-  });
+  const [showGuidePrompt, setShowGuidePrompt] = useState(false);
   const [cloudSync, setCloudSync] = useState<CloudSyncState>(() => {
     const hasToken = Boolean(localStorage.getItem('media_management_cloud_token'));
     return {
       enabled: hasToken,
       status: hasToken ? 'idle' : 'error',
-      message: hasToken ? '已登录云同步账号，等待同步。' : '未连接云同步。配置 Vercel + Supabase 后，登录即可同步多端数据。',
+      message: hasToken ? '已登录云同步账号，等待同步。' : '当前未连接云同步。本机记录仍会保存；需要多设备同步时请联系部署者开启云同步。',
       updatedAt: localStorage.getItem('media_management_cloud_updated_at'),
     };
   });
+
+  useEffect(() => {
+    if (!currentUser) {
+      setShowGuidePrompt(false);
+      return;
+    }
+    setShowGuidePrompt(localStorage.getItem(getOnboardingKey(currentUser)) !== 'true');
+  }, [currentUser]);
 
   const buildCloudPayload = (): CloudPayload => ({
     version: '1.2.0',
@@ -503,7 +514,7 @@ export default function App() {
         ...prev,
         enabled: false,
         status: 'error',
-        message: '未连接云同步。配置 Vercel + Supabase 后，登录即可同步多端数据。',
+        message: '当前未连接云同步。本机记录仍会保存；需要多设备同步时请联系部署者开启云同步。',
       }));
       return;
     }
@@ -1119,7 +1130,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setShowGuidePrompt(false);
-                    localStorage.setItem('media_management_onboarding_completed', 'true');
+                    localStorage.setItem(getOnboardingKey(currentUser), 'true');
                     setUserGuideInitialTab('data');
                     setShowUserGuide(true);
                   }}
@@ -1131,7 +1142,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setShowGuidePrompt(false);
-                    localStorage.setItem('media_management_onboarding_completed', 'true');
+                    localStorage.setItem(getOnboardingKey(currentUser), 'true');
                   }}
                   className="px-2.5 py-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 text-[11px] cursor-pointer"
                 >

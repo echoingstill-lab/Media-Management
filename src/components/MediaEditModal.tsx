@@ -8,6 +8,7 @@ import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronD
 import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
 import { generateSvgCover, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
 import { apiFetch } from '../utils/api';
+import { getDisplayCoverUrl } from '../utils/imageProxy';
 import FeatureGuideBanner from './FeatureGuideBanner';
 
 interface MediaEditModalProps {
@@ -544,7 +545,7 @@ export default function MediaEditModal({
                   <div className="relative aspect-[3/4] w-28 bg-white dark:bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2D3137] flex flex-col items-center justify-center text-center shadow-sm">
                     {coverUrl ? (
                       <img 
-                        src={coverUrl} 
+                        src={getDisplayCoverUrl(coverUrl)}
                         alt="封面预览" 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"

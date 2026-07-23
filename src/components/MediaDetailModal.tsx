@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square, Tag, ExternalLink } from 'lucide-react';
 import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS, TagDefinition, MediaType } from '../types';
 import { compressImage, generateSvgCover, deduplicateLogs, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
+import { getDisplayCoverUrl } from '../utils/imageProxy';
 
 interface MediaDetailModalProps {
   item: MediaItem;
@@ -274,7 +275,7 @@ export default function MediaDetailModal({
             {/* Cover Image */}
             <div className="relative aspect-[2/3] w-full max-w-[180px] mx-auto bg-zinc-950 rounded-none overflow-hidden border border-[#dcd6cb] dark:border-[#2d3137] shadow-xl group">
               <img 
-                src={item.coverUrl || generateSvgCover(item.title, item.creator || '佚名', item.type)} 
+                src={item.coverUrl ? getDisplayCoverUrl(item.coverUrl) : generateSvgCover(item.title, item.creator || '佚名', item.type)}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                 alt={item.title} 
                 referrerPolicy="no-referrer"

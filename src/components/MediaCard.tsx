@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square, CheckCheck, Heart, ThumbsDown } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
 import { generateSvgCover, deduplicateLogs } from '../utils/helpers';
+import { getDisplayCoverUrl } from '../utils/imageProxy';
 
 interface MediaCardProps {
   key?: React.Key;
@@ -52,7 +53,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
         {/* Image wrapper with overflow hidden for zoom effect */}
         <div className="absolute inset-0 overflow-hidden">
           <img
-            src={item.coverUrl || generateSvgCover(item.title, item.creator || '佚名', item.type)}
+            src={item.coverUrl ? getDisplayCoverUrl(item.coverUrl) : generateSvgCover(item.title, item.creator || '佚名', item.type)}
             alt={item.title}
             referrerPolicy="no-referrer"
             loading="lazy"

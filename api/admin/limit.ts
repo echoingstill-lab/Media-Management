@@ -1,15 +1,41 @@
-import type { ApiRequest, ApiResponse } from "../_http";
-import { applyCors, readJsonBody, sendJson } from "../_http";
-
 let customDailyLimit = parseInt(process.env.AI_DAILY_LIMIT || "50", 10);
 const adminToken = (process.env.ADMIN_TOKEN || "").trim();
 
-function isAdminRequest(req: ApiRequest): boolean {
+function applyCors(req: any, res: any): boolean {
+  const allowed = [
+    process.env.APP_URL,
+    process.env.CORS_ORIGINS,
+    "https://echoingstill-lab.github.io",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ]
+    .flatMap(value => String(value || "").split(","))
+    .map(value => value.trim().replace(/\/+$/u, ""))
+    .filter(Boolean);
+  const origin = String(req.headers.origin || "").replace(/\/+$/u, "");
+  if (origin && allowed.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-admin-token, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
+
+function isAdminRequest(req: any): boolean {
   if (!adminToken) return false;
   return req.headers["x-admin-token"] === adminToken;
 }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
+function sendJson(res: any, statusCode: number, data: unknown): void {
+  res.status(statusCode).json(data);
+}
+
+export default async function handler(req: any, res: any) {
   if (applyCors(req, res)) return;
   if (req.method === "GET") {
     return sendJson(res, 200, { limit: customDailyLimit });
@@ -22,7 +48,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           : "ADMIN_TOKEN is not configured on the server.",
       });
     }
-    const { limit } = await readJsonBody<{ limit?: number }>(req);
+    const { limit } = typeof req.body === "object" && req.body ? req.body : {};
     if (typeof limit === "number" && limit >= 1) {
       customDailyLimit = Math.floor(limit);
       return sendJson(res, 200, { success: true, limit: customDailyLimit });

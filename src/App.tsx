@@ -355,7 +355,8 @@ export default function App() {
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | 'all'>('all');
   const ARCHIVE_PAGE_SIZE = 36;
-  const [visibleArchiveCount, setVisibleArchiveCount] = useState(ARCHIVE_PAGE_SIZE);
+  const [archivePage, setArchivePage] = useState(1);
+  const archiveDragStateRef = React.useRef({ startX: 0, active: false, moved: false });
   const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
 
   // --- Modal Popups Trigger State ---
@@ -456,12 +457,103 @@ export default function App() {
     );
   };
 
-  const applyCloudPayload = (payload: Partial<CloudPayload>) => {
-    if (Array.isArray(payload.mediaItems)) setMediaItems(normalizeMediaItems(payload.mediaItems));
-    if (Array.isArray(payload.collections)) setCollections(payload.collections);
-    if (Array.isArray(payload.habits)) setHabits(payload.habits);
-    if (Array.isArray(payload.checkInLogs)) setCheckInLogs(payload.checkInLogs);
-    if (Array.isArray(payload.tagDefinitions)) setTagDefinitions(payload.tagDefinitions);
+  const normalizeCloudIdentityText = (value?: string) =>
+    (value || '').toLowerCase().replace(/\s+/g, ' ').replace(/[“”"']/g, '').trim();
+
+  const getMediaIdentityCandidates = (item: MediaItem) => {
+    const candidates = [
+      item.id,
+      item.sourceUrl,
+      item.title,
+      item.originalTitle,
+      `${item.title} / ${item.originalTitle || ''}`,
+    ].map(normalizeCloudIdentityText).filter(Boolean);
+    return Array.from(new Set(candidates));
+  };
+
+  const isSameCloudMediaItem = (a: MediaItem, b: MediaItem) => {
+    if (a.sourceUrl && b.sourceUrl && a.sourceUrl === b.sourceUrl) return true;
+    const aKeys = getMediaIdentityCandidates(a);
+    const bKeys = getMediaIdentityCandidates(b);
+    return aKeys.some(key => bKeys.includes(key));
+  };
+
+  const isNewerItem = (a?: string, b?: string) => {
+    const aTime = a ? new Date(a).getTime() : 0;
+    const bTime = b ? new Date(b).getTime() : 0;
+    return aTime >= bTime;
+  };
+
+  const mergeCloudMediaItem = (cloudItem: MediaItem, localItem: MediaItem): MediaItem => {
+    const primary = isNewerItem(localItem.updatedAt, cloudItem.updatedAt) ? localItem : cloudItem;
+    const secondary = primary === localItem ? cloudItem : localItem;
+    return {
+      ...secondary,
+      ...primary,
+      originalTitle: primary.originalTitle || secondary.originalTitle,
+      creator: primary.creator || secondary.creator,
+      coverUrl: primary.coverUrl || secondary.coverUrl,
+      description: primary.description || secondary.description,
+      sourceUrl: primary.sourceUrl || secondary.sourceUrl,
+      completedDate: primary.completedDate || secondary.completedDate,
+      startDate: primary.startDate || secondary.startDate,
+      wishlistMonth: primary.wishlistMonth || secondary.wishlistMonth,
+      personalRating: primary.personalRating || secondary.personalRating || 0,
+      personalNote: primary.personalNote || secondary.personalNote || '',
+      tags: Array.from(new Set([...(secondary.tags || []), ...(primary.tags || [])])),
+      collections: Array.from(new Set([...(secondary.collections || []), ...(primary.collections || [])])),
+      noteImages: Array.from(new Set([...(secondary.noteImages || []), ...(primary.noteImages || [])])),
+      reReadLogs: deduplicateLogs([...(secondary.reReadLogs || []), ...(primary.reReadLogs || [])]),
+      reReadCount: deduplicateLogs([...(secondary.reReadLogs || []), ...(primary.reReadLogs || [])]).length,
+      updatedAt: primary.updatedAt || secondary.updatedAt || new Date().toISOString(),
+    };
+  };
+
+  const mergeMediaArrays = (cloudItems: MediaItem[] = [], localItems: MediaItem[] = []) => {
+    const merged = normalizeMediaItems(cloudItems);
+    normalizeMediaItems(localItems).forEach(localItem => {
+      const matchIndex = merged.findIndex(cloudItem => isSameCloudMediaItem(cloudItem, localItem));
+      if (matchIndex >= 0) {
+        merged[matchIndex] = mergeCloudMediaItem(merged[matchIndex], localItem);
+      } else {
+        merged.unshift(localItem);
+      }
+    });
+    return merged;
+  };
+
+  const mergeById = <T extends { id: string }>(cloudValues: T[] = [], localValues: T[] = []) => {
+    const map = new Map<string, T>();
+    cloudValues.forEach(value => map.set(value.id, value));
+    localValues.forEach(value => map.set(value.id, { ...(map.get(value.id) || {} as T), ...value }));
+    return Array.from(map.values());
+  };
+
+  const mergeCheckInLogArrays = (cloudLogs: CheckInLog[] = [], localLogs: CheckInLog[] = []) => {
+    const map = new Map<string, CheckInLog>();
+    [...cloudLogs, ...localLogs].forEach(log => {
+      const key = `${log.date}__${log.habitId}__${(log.note || '').trim()}`;
+      map.set(key, log);
+    });
+    return Array.from(map.values());
+  };
+
+  const mergeCloudPayloadWithLocal = (payload: Partial<CloudPayload>): Partial<CloudPayload> => ({
+    ...payload,
+    mediaItems: mergeMediaArrays(payload.mediaItems || [], mediaItems),
+    collections: mergeById(payload.collections || [], collections),
+    habits: mergeById(payload.habits || [], habits),
+    checkInLogs: mergeCheckInLogArrays(payload.checkInLogs || [], checkInLogs),
+    tagDefinitions: mergeById(payload.tagDefinitions || [], tagDefinitions),
+  });
+
+  const applyCloudPayload = (payload: Partial<CloudPayload>, options: { mergeLocal?: boolean } = {}) => {
+    const nextPayload = options.mergeLocal ? mergeCloudPayloadWithLocal(payload) : payload;
+    if (Array.isArray(nextPayload.mediaItems)) setMediaItems(normalizeMediaItems(nextPayload.mediaItems));
+    if (Array.isArray(nextPayload.collections)) setCollections(nextPayload.collections);
+    if (Array.isArray(nextPayload.habits)) setHabits(nextPayload.habits);
+    if (Array.isArray(nextPayload.checkInLogs)) setCheckInLogs(nextPayload.checkInLogs);
+    if (Array.isArray(nextPayload.tagDefinitions)) setTagDefinitions(nextPayload.tagDefinitions);
   };
 
   const getCloudToken = () => localStorage.getItem('media_management_cloud_token') || '';
@@ -498,14 +590,20 @@ export default function App() {
         });
         return;
       }
-      applyCloudPayload(data.data);
+      if (hasMeaningfulCloudPayload(buildCloudPayload())) {
+        localStorage.setItem(
+          `media_management_pre_cloud_restore_${currentUser || 'guest'}`,
+          JSON.stringify(buildCloudPayload())
+        );
+      }
+      applyCloudPayload(data.data, { mergeLocal: true });
       if (data.updatedAt) {
         localStorage.setItem('media_management_cloud_updated_at', data.updatedAt);
       }
       setCloudSync({
         enabled: true,
         status: 'synced',
-        message: '已从云端恢复数据到本机。',
+        message: '已从云端合并恢复到本机。本机未同步的新条目会被保留，并已自动保存恢复前快照；确认无误后可手动上传到云端。',
         updatedAt: data.updatedAt,
       });
     } catch (error: any) {
@@ -1192,11 +1290,96 @@ export default function App() {
       return idxA - idxB;
     });
 
+  const totalArchivePages = Math.max(1, Math.ceil(filteredItems.length / ARCHIVE_PAGE_SIZE));
+  const currentArchivePage = Math.min(archivePage, totalArchivePages);
+  const archivePageStart = (currentArchivePage - 1) * ARCHIVE_PAGE_SIZE;
+  const visibleFilteredItems = filteredItems.slice(archivePageStart, archivePageStart + ARCHIVE_PAGE_SIZE);
+
   useEffect(() => {
-    setVisibleArchiveCount(ARCHIVE_PAGE_SIZE);
+    setArchivePage(1);
   }, [searchQuery, selectedTypeFilter, selectedStatusFilter, selectedCollectionFilter, selectedTagFilter]);
 
-  const visibleFilteredItems = filteredItems.slice(0, visibleArchiveCount);
+  useEffect(() => {
+    if (archivePage > totalArchivePages) setArchivePage(totalArchivePages);
+  }, [archivePage, totalArchivePages]);
+
+  const goToArchivePage = (page: number) => {
+    if (totalArchivePages <= 0) return;
+    const wrapped = ((page - 1 + totalArchivePages) % totalArchivePages) + 1;
+    setArchivePage(wrapped);
+  };
+
+  const goToNextArchivePage = () => goToArchivePage(currentArchivePage + 1);
+  const goToPrevArchivePage = () => goToArchivePage(currentArchivePage - 1);
+
+  const archivePageNumbers = Array.from(new Set([
+    1,
+    currentArchivePage - 1,
+    currentArchivePage,
+    currentArchivePage + 1,
+    totalArchivePages,
+  ].filter(page => page >= 1 && page <= totalArchivePages))).sort((a, b) => a - b);
+
+  const renderArchivePagination = (position: 'top' | 'bottom') => (
+    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-zinc-400 font-serif ${position === 'bottom' ? 'pt-2' : ''}`}>
+      <span>
+        第 {currentArchivePage} / {totalArchivePages} 页，每页 {ARCHIVE_PAGE_SIZE} 项，共 {filteredItems.length} 项
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={goToPrevArchivePage}
+          className="px-2.5 py-1 border border-zinc-800 text-zinc-300 hover:text-[#DDDAC4] hover:border-[#DDDAC4] transition-colors"
+        >
+          上一页
+        </button>
+        {archivePageNumbers.map((page, index) => (
+          <React.Fragment key={page}>
+            {index > 0 && page - archivePageNumbers[index - 1] > 1 && (
+              <span className="px-1 text-zinc-600">...</span>
+            )}
+            <button
+              type="button"
+              onClick={() => goToArchivePage(page)}
+              className={`min-w-8 px-2 py-1 border transition-colors ${
+                page === currentArchivePage
+                  ? 'bg-[#DDDAC4] text-[#111214] border-[#DDDAC4] font-bold'
+                  : 'border-zinc-800 text-zinc-300 hover:text-[#DDDAC4] hover:border-[#DDDAC4]'
+              }`}
+            >
+              {page}
+            </button>
+          </React.Fragment>
+        ))}
+        <button
+          type="button"
+          onClick={goToNextArchivePage}
+          className="px-2.5 py-1 border border-zinc-800 text-zinc-300 hover:text-[#DDDAC4] hover:border-[#DDDAC4] transition-colors"
+        >
+          下一页
+        </button>
+      </div>
+    </div>
+  );
+
+  useEffect(() => {
+    if (selectedTab !== 'archive') return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      if (tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable) return;
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goToNextArchivePage();
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goToPrevArchivePage();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTab, currentArchivePage, totalArchivePages]);
 
   const activeMediaDetail = mediaItems.find(itm => itm.id === activeMediaDetailId);
 
@@ -1719,56 +1902,77 @@ export default function App() {
             {/* Unified grid display of media records */}
             {filteredItems.length > 0 ? (
               <div className="space-y-5 mt-4">
-                <div className="flex items-center justify-between text-[11px] text-zinc-400 font-serif">
-                  <span>已显示 {visibleFilteredItems.length} / {filteredItems.length} 项</span>
-                  {filteredItems.length > visibleFilteredItems.length && (
-                    <button
-                      onClick={() => setVisibleArchiveCount(prev => prev + ARCHIVE_PAGE_SIZE)}
-                      className="px-3 py-1 border border-zinc-800 text-zinc-300 hover:text-[#DDDAC4] hover:border-[#DDDAC4] transition-colors"
-                    >
-                      加载更多
-                    </button>
-                  )}
+                {renderArchivePagination('top')}
+
+                <div
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 touch-pan-y select-none"
+                  onPointerDown={(event) => {
+                    archiveDragStateRef.current = { startX: event.clientX, active: true, moved: false };
+                  }}
+                  onPointerUp={(event) => {
+                    const dragState = archiveDragStateRef.current;
+                    if (!dragState.active) return;
+                    const deltaX = event.clientX - dragState.startX;
+                    archiveDragStateRef.current.active = false;
+                    if (Math.abs(deltaX) < 80) return;
+                    archiveDragStateRef.current.moved = true;
+                    if (deltaX < 0) {
+                      goToNextArchivePage();
+                    } else {
+                      goToPrevArchivePage();
+                    }
+                    window.setTimeout(() => {
+                      archiveDragStateRef.current.moved = false;
+                    }, 0);
+                  }}
+                  onPointerCancel={() => {
+                    archiveDragStateRef.current.active = false;
+                  }}
+                  onClickCapture={(event) => {
+                    if (!archiveDragStateRef.current.moved) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  {visibleFilteredItems.map(item => (
+                    <MediaCard
+                      key={item.id}
+                      item={item}
+                      onClick={() => setActiveMediaDetailId(item.id)}
+                      onContextMenu={handleMediaContextMenu}
+                      onStatusChange={(itemId, newStatus, extraFields) => {
+                        setMediaItems(prev => prev.map(m => {
+                          if (m.id === itemId) {
+                            const now = new Date().toISOString();
+                            const updated = {
+                              ...m,
+                              status: newStatus,
+                              updatedAt: now,
+                              ...extraFields
+                            };
+                            // If moving to completed, set completedDate
+                            if (newStatus === 'completed' && !m.completedDate) {
+                              updated.completedDate = now.split('T')[0];
+                            }
+                            // If moving to progress, set startDate
+                            if (newStatus === 'progress' && !m.startDate) {
+                              updated.startDate = now.split('T')[0];
+                            }
+                            // If moving to wishlist (加入清单-默认本月), and wishlistMonth is empty, set default to this month
+                            if (newStatus === 'wishlist' && !m.wishlistMonth) {
+                              const nowStr = now.split('T')[0];
+                              updated.wishlistMonth = nowStr.substring(0, 7); // e.g. "2026-07"
+                            }
+                            return updated;
+                          }
+                          return m;
+                        }));
+                      }}
+                    />
+                  ))}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-                {visibleFilteredItems.map(item => (
-                  <MediaCard
-                    key={item.id}
-                    item={item}
-                    onClick={() => setActiveMediaDetailId(item.id)}
-                    onContextMenu={handleMediaContextMenu}
-                    onStatusChange={(itemId, newStatus, extraFields) => {
-                      setMediaItems(prev => prev.map(m => {
-                        if (m.id === itemId) {
-                          const now = new Date().toISOString();
-                          const updated = {
-                            ...m,
-                            status: newStatus,
-                            updatedAt: now,
-                            ...extraFields
-                          };
-                          // If moving to completed, set completedDate
-                          if (newStatus === 'completed' && !m.completedDate) {
-                            updated.completedDate = now.split('T')[0];
-                          }
-                          // If moving to progress, set startDate
-                          if (newStatus === 'progress' && !m.startDate) {
-                            updated.startDate = now.split('T')[0];
-                          }
-                          // If moving to wishlist (加入清单-默认本月), and wishlistMonth is empty, set default to this month
-                          if (newStatus === 'wishlist' && !m.wishlistMonth) {
-                            const nowStr = now.split('T')[0];
-                            updated.wishlistMonth = nowStr.substring(0, 7); // e.g. "2026-07"
-                          }
-                          return updated;
-                        }
-                        return m;
-                      }));
-                    }}
-                  />
-                ))}
-                </div>
+                {renderArchivePagination('bottom')}
               </div>
             ) : (
               <div className="p-16 border border-dashed border-zinc-300 dark:border-zinc-800 text-center space-y-4 rounded-none">

@@ -572,7 +572,7 @@ export default function DataManagement({
             disabled={!cloudSync?.enabled || cloudSync.status === 'syncing'}
             className="px-4 py-2 text-xs font-bold uppercase tracking-wider border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
           >
-            从云端恢复到本机
+            从云端合并恢复到本机
           </button>
           <button
             type="button"

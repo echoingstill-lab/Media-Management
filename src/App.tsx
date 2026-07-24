@@ -400,18 +400,32 @@ export default function App() {
     tagDefinitions,
   });
 
-  const hasLocalUserData = () => {
-    return mediaItems.length > 0 || collections.length > 0 || checkInLogs.length > 0 || tagDefinitions.length > 0;
+  const hasMeaningfulCloudPayload = (payload: Partial<CloudPayload>) => {
+    return Boolean(
+      (Array.isArray(payload.mediaItems) && payload.mediaItems.length > 0) ||
+      (Array.isArray(payload.collections) && payload.collections.length > 0) ||
+      (Array.isArray(payload.checkInLogs) && payload.checkInLogs.length > 0)
+    );
+  };
+
+  const hasStoredArrayData = (key: string) => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.length > 0 : Boolean(parsed);
+    } catch {
+      return raw.trim().length > 0;
+    }
   };
 
   const hasStoredUserData = () => {
     if (!currentUser) return false;
     const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
     return Boolean(
-      localStorage.getItem(getStorageKey('items', currentUser, isAdm)) ||
-      localStorage.getItem(getStorageKey('collections', currentUser, isAdm)) ||
-      localStorage.getItem(getStorageKey('logs', currentUser, isAdm)) ||
-      localStorage.getItem(getStorageKey('tags', currentUser, isAdm))
+      hasStoredArrayData(getStorageKey('items', currentUser, isAdm)) ||
+      hasStoredArrayData(getStorageKey('collections', currentUser, isAdm)) ||
+      hasStoredArrayData(getStorageKey('logs', currentUser, isAdm))
     );
   };
 
@@ -488,6 +502,16 @@ export default function App() {
     }
     setCloudSync(prev => ({ ...prev, enabled: true, status: 'syncing', message: '正在上传本机数据到云端...' }));
     try {
+      const payload = buildCloudPayload();
+      if (!hasMeaningfulCloudPayload(payload)) {
+        setCloudSync({
+          enabled: true,
+          status: 'error',
+          message: '本机没有可上传的档案数据。已阻止空数据覆盖云端，请先从云端恢复或导入备份。',
+        });
+        return;
+      }
+
       const baseUpdatedAt = localStorage.getItem('media_management_cloud_updated_at');
       const { response, data } = await apiJson<{
         success?: boolean;
@@ -501,7 +525,7 @@ export default function App() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          payload: buildCloudPayload(),
+          payload,
           baseUpdatedAt,
           force,
         }),
@@ -565,7 +589,7 @@ export default function App() {
           throw new Error(data?.error || '云同步不可用，本机数据仍会保留。');
         }
 
-        const localHasData = hasLocalUserData() || hasStoredUserData();
+        const localHasData = hasStoredUserData();
         if (data.data && !localHasData) {
           applyCloudPayload(data.data);
           if (data.updatedAt) localStorage.setItem('media_management_cloud_updated_at', data.updatedAt);

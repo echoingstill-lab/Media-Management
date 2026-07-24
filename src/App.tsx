@@ -343,7 +343,8 @@ export default function App() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<MediaItem['status'] | 'all'>('all');
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | 'all'>('all');
-  const [visibleArchiveCount, setVisibleArchiveCount] = useState(80);
+  const ARCHIVE_PAGE_SIZE = 36;
+  const [visibleArchiveCount, setVisibleArchiveCount] = useState(ARCHIVE_PAGE_SIZE);
   const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
 
   // --- Modal Popups Trigger State ---
@@ -1181,7 +1182,7 @@ export default function App() {
     });
 
   useEffect(() => {
-    setVisibleArchiveCount(80);
+    setVisibleArchiveCount(ARCHIVE_PAGE_SIZE);
   }, [searchQuery, selectedTypeFilter, selectedStatusFilter, selectedCollectionFilter, selectedTagFilter]);
 
   const visibleFilteredItems = filteredItems.slice(0, visibleArchiveCount);
@@ -1673,7 +1674,7 @@ export default function App() {
                   <span>已显示 {visibleFilteredItems.length} / {filteredItems.length} 项</span>
                   {filteredItems.length > visibleFilteredItems.length && (
                     <button
-                      onClick={() => setVisibleArchiveCount(prev => prev + 80)}
+                      onClick={() => setVisibleArchiveCount(prev => prev + ARCHIVE_PAGE_SIZE)}
                       className="px-3 py-1 border border-zinc-800 text-zinc-300 hover:text-[#DDDAC4] hover:border-[#DDDAC4] transition-colors"
                     >
                       加载更多

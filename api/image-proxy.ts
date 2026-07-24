@@ -1,3 +1,5 @@
+import { Readable } from "stream";
+
 function isBlockedProxyHostname(hostname: string): boolean {
   const lower = hostname.toLowerCase();
   if (lower === "localhost" || lower.endsWith(".localhost")) return true;
@@ -84,11 +86,22 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const bytes = Buffer.from(await response.arrayBuffer());
     res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800");
-    res.setHeader("Content-Length", String(bytes.length));
-    res.status(200).send(bytes);
+    res.setHeader("Cache-Control", "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=2592000");
+    res.setHeader("CDN-Cache-Control", "public, s-maxage=2592000, stale-while-revalidate=2592000");
+    res.setHeader("Vercel-CDN-Cache-Control", "public, s-maxage=2592000, stale-while-revalidate=2592000");
+    const contentLength = response.headers.get("content-length");
+    if (contentLength) res.setHeader("Content-Length", contentLength);
+
+    if (!response.body) {
+      const bytes = Buffer.from(await response.arrayBuffer());
+      res.setHeader("Content-Length", String(bytes.length));
+      res.status(200).send(bytes);
+      return;
+    }
+
+    res.status(200);
+    Readable.fromWeb(response.body as any).pipe(res);
   } catch (error: any) {
     res.status(502).json({ error: error.message || "Image proxy failed." });
   }

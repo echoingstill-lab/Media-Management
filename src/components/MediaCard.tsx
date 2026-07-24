@@ -53,7 +53,7 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
         {/* Image wrapper with overflow hidden for zoom effect */}
         <div className="absolute inset-0 overflow-hidden">
           <img
-            src={item.coverUrl ? getDisplayCoverUrl(item.coverUrl) : generateSvgCover(item.title, item.creator || '佚名', item.type)}
+            src={item.coverUrl ? getDisplayCoverUrl(item.coverUrl, 'card') : generateSvgCover(item.title, item.creator || '佚名', item.type)}
             alt={item.title}
             referrerPolicy="no-referrer"
             loading="lazy"

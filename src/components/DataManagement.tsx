@@ -35,9 +35,17 @@ interface DataManagementProps {
     savedAt?: string | null;
     itemCount?: number;
   };
+  safetySnapshotInfo?: {
+    available: boolean;
+    savedAt?: string | null;
+    reason?: string;
+    itemCount?: number;
+    snapshotCount?: number;
+  };
   onPullCloud?: () => void;
   onPushCloud?: (force?: boolean) => void;
   onRestoreRecoverySnapshot?: () => void;
+  onRestoreSafetySnapshot?: () => void;
 }
 
 interface ParsedImportRow {
@@ -112,9 +120,11 @@ export default function DataManagement({
   isAdmin = false,
   cloudSync,
   recoverySnapshotInfo,
+  safetySnapshotInfo,
   onPullCloud,
   onPushCloud,
   onRestoreRecoverySnapshot,
+  onRestoreSafetySnapshot,
 }: DataManagementProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({
@@ -617,6 +627,28 @@ export default function DataManagement({
                 className="shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors"
               >
                 合并恢复本机快照
+              </button>
+            </div>
+          </div>
+        )}
+        {safetySnapshotInfo?.available && (
+          <div className="mt-4 p-3 border border-sky-500/25 bg-sky-500/5 text-xs text-sky-700 dark:text-sky-300 leading-relaxed">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <p className="font-bold">最近安全快照可恢复</p>
+                <p className="mt-1 opacity-80">
+                  最近一次：{safetySnapshotInfo.reason || '自动保存'}，
+                  约 {safetySnapshotInfo.itemCount || 0} 条媒体记录
+                  {safetySnapshotInfo.savedAt ? `，保存于 ${new Date(safetySnapshotInfo.savedAt).toLocaleString()}` : ''}。
+                  当前保留 {safetySnapshotInfo.snapshotCount || 1} 份安全快照。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onRestoreSafetySnapshot}
+                className="shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider border border-sky-500/40 text-sky-700 dark:text-sky-300 hover:bg-sky-500/10 transition-colors"
+              >
+                合并恢复最近快照
               </button>
             </div>
           </div>

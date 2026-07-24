@@ -49,6 +49,21 @@ type RecoverySnapshotInfo = {
   itemCount?: number;
 };
 
+type SafetySnapshot = {
+  id: string;
+  reason: string;
+  savedAt: string;
+  payload: CloudPayload;
+};
+
+type SafetySnapshotInfo = {
+  available: boolean;
+  savedAt?: string | null;
+  reason?: string;
+  itemCount?: number;
+  snapshotCount?: number;
+};
+
 function getOnboardingKey(username: string | null): string {
   const normalized = username?.trim().toLowerCase() || 'guest';
   return `media_management_onboarding_completed_${normalized}`;
@@ -131,9 +146,14 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
     return initialAdmin;
   });
+  const [loadedStorageScope, setLoadedStorageScope] = useState<string>(() => {
+    if (!initialUser || initialUser === 'Guest') return '';
+    return getStorageKey('items', initialUser, initialAdmin);
+  });
 
   const handleLogin = (username: string, adminStatus = false) => {
     const isAdm = adminStatus || username.toLowerCase() === 'echoingstill' || username.toLowerCase() === 'admin';
+    setLoadedStorageScope('');
     setCurrentUser(username);
     localStorage.setItem('media_management_user', username);
     if (isAdm) {
@@ -147,6 +167,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    setLoadedStorageScope('');
     setCurrentUser(null);
     setIsAdmin(false);
     localStorage.removeItem('media_management_user');
@@ -272,17 +293,20 @@ export default function App() {
     } else {
       setTagDefinitions(isAdm ? DEFAULT_TAG_DEFINITIONS : []);
     }
+    setLoadedStorageScope(itemKey);
   }, [currentUser, isAdmin]);
 
   useEffect(() => {
     if (!currentUser) return;
     const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
     const tagKey = getStorageKey('tags', currentUser, isAdm);
+    const itemKey = getStorageKey('items', currentUser, isAdm);
+    if (loadedStorageScope !== itemKey) return;
     localStorage.setItem(tagKey, JSON.stringify(tagDefinitions));
     if (isAdm) {
       localStorage.setItem('media_archive_tag_definitions', JSON.stringify(tagDefinitions));
     }
-  }, [tagDefinitions, currentUser, isAdmin]);
+  }, [tagDefinitions, currentUser, isAdmin, loadedStorageScope]);
 
   const handleRegisterTag = (name: string, mediaType: MediaType | 'global' = 'global') => {
     const cleanName = name.trim();
@@ -378,6 +402,7 @@ export default function App() {
   const archiveDragStateRef = React.useRef({ startX: 0, active: false, moved: false });
   const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
   const [recoverySnapshotTick, setRecoverySnapshotTick] = useState(0);
+  const [safetySnapshotTick, setSafetySnapshotTick] = useState(0);
 
   useEffect(() => {
     const handleResize = () => {
@@ -492,6 +517,45 @@ export default function App() {
     );
   };
 
+  const getSafetySnapshotsKey = () => `media_management_safety_snapshots_${currentUser || 'guest'}`;
+
+  const readSafetySnapshots = (): SafetySnapshot[] => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(getSafetySnapshotsKey()) || '[]');
+      return Array.isArray(parsed)
+        ? parsed.filter(snapshot => snapshot?.payload && hasMeaningfulCloudPayload(snapshot.payload))
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeSafetySnapshots = (snapshots: SafetySnapshot[]) => {
+    let next = snapshots.slice(0, 6);
+    while (next.length > 0) {
+      try {
+        localStorage.setItem(getSafetySnapshotsKey(), JSON.stringify(next));
+        setSafetySnapshotTick(tick => tick + 1);
+        return true;
+      } catch {
+        next = next.slice(0, -1);
+      }
+    }
+    return false;
+  };
+
+  const saveSafetySnapshot = (reason: string) => {
+    const payload = buildCloudPayload();
+    if (!hasMeaningfulCloudPayload(payload)) return false;
+    const snapshot: SafetySnapshot = {
+      id: `snapshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      reason,
+      savedAt: new Date().toISOString(),
+      payload,
+    };
+    return writeSafetySnapshots([snapshot, ...readSafetySnapshots()]);
+  };
+
   const recoverySnapshotInfo: RecoverySnapshotInfo = React.useMemo(() => {
     const snapshot = getRecoverySnapshotPayload();
     if (!snapshot) return { available: false };
@@ -501,6 +565,19 @@ export default function App() {
       itemCount: Array.isArray(snapshot.mediaItems) ? snapshot.mediaItems.length : 0,
     };
   }, [currentUser, recoverySnapshotTick, mediaItems.length]);
+
+  const safetySnapshotInfo: SafetySnapshotInfo = React.useMemo(() => {
+    const snapshots = readSafetySnapshots();
+    const latest = snapshots[0];
+    if (!latest) return { available: false, snapshotCount: 0 };
+    return {
+      available: true,
+      savedAt: latest.savedAt,
+      reason: latest.reason,
+      itemCount: Array.isArray(latest.payload.mediaItems) ? latest.payload.mediaItems.length : 0,
+      snapshotCount: snapshots.length,
+    };
+  }, [currentUser, safetySnapshotTick, mediaItems.length]);
 
   const hasStoredArrayData = (key: string) => {
     const raw = localStorage.getItem(key);
@@ -657,6 +734,7 @@ export default function App() {
         return;
       }
       if (hasMeaningfulCloudPayload(buildCloudPayload())) {
+        saveSafetySnapshot('从云端合并恢复前');
         localStorage.setItem(
           getRecoverySnapshotKey(),
           JSON.stringify(buildCloudPayload())
@@ -693,12 +771,35 @@ export default function App() {
       return;
     }
 
+    saveSafetySnapshot('合并恢复云恢复前快照前');
     applyCloudPayload(snapshot, { mergeLocal: true });
     setRecoverySnapshotTick(tick => tick + 1);
     setCloudSync(prev => ({
       ...prev,
       status: 'synced',
       message: '已把云恢复前的本机快照合并回当前数据。请先确认图书等记录已恢复，再手动上传到云端。',
+    }));
+    setSelectedTab('archive');
+  };
+
+  const handleRestoreSafetySnapshot = () => {
+    const latest = readSafetySnapshots()[0];
+    if (!latest) {
+      setCloudSync(prev => ({
+        ...prev,
+        status: 'error',
+        message: '没有找到可恢复的安全快照。如果本机和云端都没有旧数据，需要重新导入 CSV 或 JSON 备份。',
+      }));
+      return;
+    }
+
+    saveSafetySnapshot('合并恢复最近安全快照前');
+    applyCloudPayload(latest.payload, { mergeLocal: true });
+    setSafetySnapshotTick(tick => tick + 1);
+    setCloudSync(prev => ({
+      ...prev,
+      status: 'synced',
+      message: `已合并恢复最近安全快照（${latest.reason}）。请确认数据正常后再上传云端。`,
     }));
     setSelectedTab('archive');
   };
@@ -715,7 +816,8 @@ export default function App() {
     }
     setCloudSync(prev => ({ ...prev, enabled: true, status: 'syncing', message: '正在上传本机数据到云端...' }));
     try {
-      const payload = buildCloudPayload();
+      saveSafetySnapshot('上传云端前');
+      let payload: CloudPayload = buildCloudPayload();
       if (!hasMeaningfulCloudPayload(payload)) {
         setCloudSync({
           enabled: true,
@@ -725,7 +827,29 @@ export default function App() {
         return;
       }
 
-      const baseUpdatedAt = localStorage.getItem('media_management_cloud_updated_at');
+      let baseUpdatedAt = localStorage.getItem('media_management_cloud_updated_at');
+      if (!force) {
+        setCloudSync(prev => ({ ...prev, enabled: true, status: 'syncing', message: '正在合并云端与本机数据...' }));
+        const { response: pullResponse, data: pullData } = await apiJson<{
+          success?: boolean;
+          data?: CloudPayload | null;
+          updatedAt?: string | null;
+          error?: string;
+        }>('/api/sync/data', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!pullResponse.ok || !pullData?.success) {
+          throw new Error(pullData?.error || '上传前读取云端数据失败，已停止上传以避免覆盖云端。');
+        }
+        if (pullData.data && hasMeaningfulCloudPayload(pullData.data)) {
+          payload = {
+            ...mergeCloudPayloadWithLocal(pullData.data),
+            version: '1.2.0',
+            exportedAt: new Date().toISOString(),
+          } as CloudPayload;
+        }
+        baseUpdatedAt = pullData.updatedAt || baseUpdatedAt;
+      }
       const payloadJson = JSON.stringify(payload);
       const payloadGzipBase64 = await gzipTextToBase64(payloadJson);
       const { response, data } = await apiJson<{
@@ -763,7 +887,7 @@ export default function App() {
       setCloudSync({
         enabled: true,
         status: 'synced',
-        message: '本机数据已同步到云端。',
+        message: force ? '本机数据已覆盖同步到云端。' : '本机数据已与云端合并后同步到云端。',
         updatedAt: data.updatedAt,
       });
     } catch (error: any) {
@@ -786,6 +910,9 @@ export default function App() {
       }));
       return;
     }
+    const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
+    const expectedStorageScope = getStorageKey('items', currentUser, isAdm);
+    if (loadedStorageScope !== expectedStorageScope) return;
 
     let cancelled = false;
     const bootstrapCloudSync = async () => {
@@ -806,7 +933,7 @@ export default function App() {
 
         const localHasData = hasStoredUserData();
         if (data.data && !localHasData) {
-          applyCloudPayload(data.data);
+          applyCloudPayload(data.data, { mergeLocal: true });
           if (data.updatedAt) localStorage.setItem('media_management_cloud_updated_at', data.updatedAt);
           setCloudSync({
             enabled: true,
@@ -857,9 +984,10 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, isAdmin, loadedStorageScope]);
 
   const handleUpdateAccount = (newUsername: string, newPassword?: string) => {
+    setLoadedStorageScope('');
     const usersData = localStorage.getItem('media_management_users');
     const users = usersData ? JSON.parse(usersData) : {};
 
@@ -937,11 +1065,12 @@ export default function App() {
     if (!currentUser) return;
     const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
     const key = getStorageKey('items', currentUser, isAdm);
+    if (loadedStorageScope !== key) return;
     localStorage.setItem(key, JSON.stringify(mediaItems));
     if (isAdm) {
       localStorage.setItem('media_archive_items', JSON.stringify(mediaItems));
     }
-  }, [mediaItems, currentUser, isAdmin]);
+  }, [mediaItems, currentUser, isAdmin, loadedStorageScope]);
 
   const mediaIdsString = mediaItems.map(itm => itm.id).join(',');
 
@@ -963,11 +1092,13 @@ export default function App() {
     if (!currentUser) return;
     const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
     const key = getStorageKey('collections', currentUser, isAdm);
+    const itemKey = getStorageKey('items', currentUser, isAdm);
+    if (loadedStorageScope !== itemKey) return;
     localStorage.setItem(key, JSON.stringify(collections));
     if (isAdm) {
       localStorage.setItem('media_archive_collections', JSON.stringify(collections));
     }
-  }, [collections, currentUser, isAdmin]);
+  }, [collections, currentUser, isAdmin, loadedStorageScope]);
 
   useEffect(() => {
     localStorage.setItem('media_archive_habits', JSON.stringify(habits));
@@ -977,11 +1108,13 @@ export default function App() {
     if (!currentUser) return;
     const isAdm = isAdmin || currentUser.toLowerCase() === 'echoingstill' || currentUser.toLowerCase() === 'admin';
     const key = getStorageKey('logs', currentUser, isAdm);
+    const itemKey = getStorageKey('items', currentUser, isAdm);
+    if (loadedStorageScope !== itemKey) return;
     localStorage.setItem(key, JSON.stringify(checkInLogs));
     if (isAdm) {
       localStorage.setItem('media_archive_check_in_logs', JSON.stringify(checkInLogs));
     }
-  }, [checkInLogs, currentUser, isAdmin]);
+  }, [checkInLogs, currentUser, isAdmin, loadedStorageScope]);
 
   useEffect(() => {
     // Force dark mode always
@@ -1170,14 +1303,12 @@ export default function App() {
     checkInLogs: CheckInLog[];
     tagDefinitions?: TagDefinition[];
   }) => {
-    if (data.mediaItems) setMediaItems(normalizeMediaItems(data.mediaItems));
-    if (data.collections) setCollections(data.collections);
-    if (data.habits) setHabits(data.habits);
-    if (data.checkInLogs) setCheckInLogs(data.checkInLogs);
-    if (data.tagDefinitions) setTagDefinitions(data.tagDefinitions);
+    saveSafetySnapshot('导入 JSON 备份前');
+    applyCloudPayload(data, { mergeLocal: true });
   };
 
   const handleResetToDefault = () => {
+    saveSafetySnapshot('重置为示例数据前');
     setMediaItems(DEFAULT_MEDIA_ITEMS);
     setCollections(DEFAULT_COLLECTIONS);
     setHabits(DEFAULT_HABITS);
@@ -1258,6 +1389,7 @@ export default function App() {
   };
 
   const handleBulkAddItems = (newItems: MediaItem[]) => {
+    saveSafetySnapshot('批量导入前');
     setMediaItems(prev => {
       const merged = [...prev];
       const additions: MediaItem[] = [];
@@ -2169,9 +2301,11 @@ export default function App() {
               isAdmin={isAdmin && ['echoingstill', 'admin'].includes((currentUser || '').toLowerCase())}
               cloudSync={cloudSync}
               recoverySnapshotInfo={recoverySnapshotInfo}
+              safetySnapshotInfo={safetySnapshotInfo}
               onPullCloud={handlePullCloud}
               onPushCloud={handlePushCloud}
               onRestoreRecoverySnapshot={handleRestoreRecoverySnapshot}
+              onRestoreSafetySnapshot={handleRestoreSafetySnapshot}
             />
           </div>
         )}

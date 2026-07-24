@@ -24,7 +24,7 @@ import TagManagerModal from './components/TagManagerModal';
 import UserGuideModal from './components/UserGuideModal';
 import AccountSettingsModal from './components/AccountSettingsModal';
 import { apiJson } from './utils/api';
-import { getDisplayCoverUrl } from './utils/imageProxy';
+import { getDisplayCoverCandidates } from './utils/imageProxy';
 
 type CloudPayload = {
   version: string;
@@ -1410,9 +1410,11 @@ export default function App() {
       const start = (wrapped - 1) * archivePageSize;
       filteredItems.slice(start, start + archivePageSize).forEach(item => {
         if (!item.coverUrl) return;
-        const image = new Image();
-        image.decoding = 'async';
-        image.src = getDisplayCoverUrl(item.coverUrl, 'card');
+        getDisplayCoverCandidates(item.coverUrl, 'card').forEach(url => {
+          const image = new Image();
+          image.decoding = 'async';
+          image.src = url;
+        });
       });
     };
 

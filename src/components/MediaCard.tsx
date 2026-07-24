@@ -7,8 +7,8 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bookmark, Star, X, Activity, SquareCheck, Check, Book, Film, Tv, Music, Gamepad, Ghost, Sparkles, Users, Plus, Play, Square, CheckCheck, Heart, ThumbsDown } from 'lucide-react';
 import { MediaItem, MediaType, MEDIA_TYPE_LABELS } from '../types';
-import { generateSvgCover, deduplicateLogs } from '../utils/helpers';
-import { getDisplayCoverUrl } from '../utils/imageProxy';
+import { deduplicateLogs } from '../utils/helpers';
+import CoverImage from './CoverImage';
 
 interface MediaCardProps {
   key?: React.Key;
@@ -58,16 +58,13 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
       <div className={`relative ${aspectClass} w-full`}>
         {/* Image wrapper with overflow hidden for zoom effect */}
         <div className="absolute inset-0 overflow-hidden">
-          <img
-            src={item.coverUrl ? getDisplayCoverUrl(item.coverUrl, 'card') : generateSvgCover(item.title, item.creator || '佚名', item.type)}
-            alt={item.title}
-            referrerPolicy="no-referrer"
-            loading="lazy"
-            decoding="async"
+          <CoverImage
+            coverUrl={item.coverUrl}
+            title={item.title}
+            creator={item.creator}
+            type={item.type}
+            mode="card"
             className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
-            onError={(e) => {
-              e.currentTarget.src = generateSvgCover(item.title, item.creator || '佚名', item.type);
-            }}
           />
         </div>
 

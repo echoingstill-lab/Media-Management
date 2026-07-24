@@ -23,7 +23,7 @@ import {
 import { Collection, MediaItem } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import FeatureGuideBanner from './FeatureGuideBanner';
-import { getDisplayCoverUrl } from '../utils/imageProxy';
+import CoverImage from './CoverImage';
 
 interface CollectionManagerProps {
   collections: Collection[];
@@ -427,7 +427,14 @@ export default function CollectionManager({
                                       <div className="grid grid-cols-2 gap-1.5 w-full h-full max-w-[120px] max-h-[90px] group-hover:scale-105 transition-transform duration-300">
                                         {previewItems.map((item: any) => (
                                           <div key={item.id} className="aspect-[3/4] overflow-hidden bg-zinc-100 dark:bg-zinc-850 shadow-xs border border-white dark:border-zinc-900">
-                                            <img src={getDisplayCoverUrl(item.coverUrl, 'card')} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
+                                            <CoverImage
+                                              coverUrl={item.coverUrl}
+                                              title={item.title}
+                                              creator={item.creator}
+                                              type={item.type}
+                                              mode="card"
+                                              className="w-full h-full object-cover"
+                                            />
                                           </div>
                                         ))}
                                       </div>
@@ -460,7 +467,14 @@ export default function CollectionManager({
                                   className="group relative flex flex-col bg-white dark:bg-zinc-900/40 border border-[#E6E0D5] dark:border-zinc-800 hover:border-[#4A3B32] dark:hover:border-[#DDDAC4] transition-all cursor-pointer overflow-hidden shadow-sm hover:shadow-md"
                                 >
                                   <div className="aspect-[3/4] overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                                    <img src={getDisplayCoverUrl(mediaItem.coverUrl, 'card')} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
+                                    <CoverImage
+                                      coverUrl={mediaItem.coverUrl}
+                                      title={mediaItem.title}
+                                      creator={mediaItem.creator}
+                                      type={mediaItem.type}
+                                      mode="card"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                    />
                                   </div>
                                   <div className="p-3 space-y-2">
                                     <div className="flex items-center justify-between gap-2">

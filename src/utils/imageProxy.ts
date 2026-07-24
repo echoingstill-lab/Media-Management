@@ -64,3 +64,19 @@ export function getDisplayCoverUrl(url: string, mode: CoverDisplayMode = 'detail
     return cleanUrl;
   }
 }
+
+export function getDisplayCoverCandidates(url: string, mode: CoverDisplayMode = 'detail'): string[] {
+  const cleanUrl = url.trim();
+  if (!cleanUrl) return [];
+  if (mode === 'card') {
+    return Array.from(new Set([
+      getDisplayCoverUrl(cleanUrl, 'card'),
+      getDisplayCoverUrl(cleanUrl, 'detail'),
+      cleanUrl,
+    ].filter(Boolean)));
+  }
+  return Array.from(new Set([
+    getDisplayCoverUrl(cleanUrl, 'detail'),
+    cleanUrl,
+  ].filter(Boolean)));
+}

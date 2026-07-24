@@ -7,7 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, Film, Tv, Music, Gamepad, Compass, Bookmark, Search, Plus, Sun, Moon, Database, Calendar, Layers, Sparkles, Filter, SquareCheck, LogOut, User, Ghost, Folder, Tag, ChevronDown, ChevronUp, Settings, HelpCircle } from 'lucide-react';
 import { MediaItem, Collection, CheckInHabit, CheckInLog, MediaType, MEDIA_TYPE_LABELS, TagDefinition } from './types';
-import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS, DEFAULT_TAG_DEFINITIONS, deduplicateLogs } from './utils/helpers';
+import { deduplicateLogs } from './utils/helpers';
+import { DEFAULT_MEDIA_ITEMS, DEFAULT_COLLECTIONS, DEFAULT_HABITS, DEFAULT_CHECK_IN_LOGS, DEFAULT_TAG_DEFINITIONS } from './utils/defaultData';
 
 // Components
 import MediaCard from './components/MediaCard';
@@ -400,6 +401,20 @@ export default function App() {
     tagDefinitions,
   });
 
+  const gzipTextToBase64 = async (text: string): Promise<string | null> => {
+    const CompressionStreamCtor = (window as any).CompressionStream;
+    if (!CompressionStreamCtor) return null;
+    const stream = new Blob([text]).stream().pipeThrough(new CompressionStreamCtor('gzip'));
+    const buffer = await new Response(stream).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  };
+
   const hasMeaningfulCloudPayload = (payload: Partial<CloudPayload>) => {
     return Boolean(
       (Array.isArray(payload.mediaItems) && payload.mediaItems.length > 0) ||
@@ -513,6 +528,8 @@ export default function App() {
       }
 
       const baseUpdatedAt = localStorage.getItem('media_management_cloud_updated_at');
+      const payloadJson = JSON.stringify(payload);
+      const payloadGzipBase64 = await gzipTextToBase64(payloadJson);
       const { response, data } = await apiJson<{
         success?: boolean;
         updatedAt?: string;
@@ -525,7 +542,7 @@ export default function App() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          payload,
+          ...(payloadGzipBase64 ? { payloadGzipBase64 } : { payload }),
           baseUpdatedAt,
           force,
         }),
@@ -969,8 +986,95 @@ export default function App() {
     setCheckInLogs(DEFAULT_CHECK_IN_LOGS);
   };
 
+  const normalizeImportMatchText = (value?: string) =>
+    (value || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[“”"']/g, '')
+      .trim();
+
+  const splitLegacyImportedTitle = (value?: string) => {
+    const parts = (value || '').split(/\s+\/\s+/).map(part => part.trim()).filter(Boolean);
+    return {
+      title: parts[0] || value || '',
+      originalTitle: parts.length > 1 ? parts.slice(1).join(' / ') : '',
+    };
+  };
+
+  const shouldReplaceImportedField = (value?: string, importedFallbackPrefix?: string) => {
+    const normalized = (value || '').trim();
+    if (!normalized) return true;
+    if (normalized === '未记录创作者') return true;
+    if (normalized === '鏈褰曞垱浣滆€?') return true;
+    if (normalized.startsWith('data:image/svg+xml')) return true;
+    if (importedFallbackPrefix && normalized.startsWith(importedFallbackPrefix)) return true;
+    return false;
+  };
+
+  const isSameImportedMedia = (existing: MediaItem, incoming: MediaItem) => {
+    if (existing.sourceUrl && incoming.sourceUrl && existing.sourceUrl === incoming.sourceUrl) return true;
+
+    const existingLegacy = splitLegacyImportedTitle(existing.title);
+    const titleCandidates = [
+      existing.title,
+      existing.originalTitle,
+      existingLegacy.title,
+      existingLegacy.originalTitle,
+      `${existingLegacy.title} / ${existingLegacy.originalTitle}`,
+    ].map(normalizeImportMatchText).filter(Boolean);
+
+    const incomingCandidates = [
+      incoming.title,
+      incoming.originalTitle,
+      `${incoming.title} / ${incoming.originalTitle || ''}`,
+    ].map(normalizeImportMatchText).filter(Boolean);
+
+    return incomingCandidates.some(candidate => titleCandidates.includes(candidate));
+  };
+
+  const mergeImportedMediaItem = (existing: MediaItem, incoming: MediaItem): MediaItem => {
+    const legacy = splitLegacyImportedTitle(existing.title);
+    const tags = Array.from(new Set([...(existing.tags || []), ...(incoming.tags || [])]));
+    const collections = Array.from(new Set([...(existing.collections || []), ...(incoming.collections || [])]));
+
+    return {
+      ...existing,
+      title: legacy.originalTitle && existing.title.includes(' / ') ? legacy.title : (incoming.title || existing.title),
+      originalTitle: existing.originalTitle || incoming.originalTitle || legacy.originalTitle || undefined,
+      type: incoming.type || existing.type,
+      creator: shouldReplaceImportedField(existing.creator) && incoming.creator ? incoming.creator : existing.creator,
+      coverUrl: shouldReplaceImportedField(existing.coverUrl) && incoming.coverUrl ? incoming.coverUrl : existing.coverUrl,
+      description:
+        shouldReplaceImportedField(existing.description, '批量导入数据') && incoming.description
+          ? incoming.description
+          : existing.description,
+      sourceUrl: existing.sourceUrl || incoming.sourceUrl,
+      completedDate: existing.completedDate || incoming.completedDate,
+      status: existing.status || incoming.status,
+      personalRating: existing.personalRating > 0 ? existing.personalRating : incoming.personalRating,
+      personalNote: existing.personalNote || incoming.personalNote,
+      tags,
+      collections,
+      updatedAt: new Date().toISOString(),
+    };
+  };
+
   const handleBulkAddItems = (newItems: MediaItem[]) => {
-    setMediaItems(prev => [...newItems, ...prev]);
+    setMediaItems(prev => {
+      const merged = [...prev];
+      const additions: MediaItem[] = [];
+
+      newItems.forEach(item => {
+        const matchIndex = merged.findIndex(existing => isSameImportedMedia(existing, item));
+        if (matchIndex >= 0) {
+          merged[matchIndex] = mergeImportedMediaItem(merged[matchIndex], item);
+        } else {
+          additions.push(item);
+        }
+      });
+
+      return [...additions, ...merged];
+    });
   };
 
   // Derived unique bound & standalone tags for the archive tag filter bar

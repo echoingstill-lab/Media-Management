@@ -7,7 +7,8 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, Clock, History, Plus, Trash2, Edit2, Camera, HelpCircle, CheckCircle2, Loader2, Heart, ThumbsDown, Sparkles, Activity, Book, Film, Tv, Music, Gamepad, Ghost, Users, ChevronDown, MapPin, Bookmark, Play, Check, Square, Tag, ExternalLink } from 'lucide-react';
 import { MediaItem, ReReadLog, MEDIA_TYPE_LABELS, TagDefinition, MediaType } from '../types';
-import { compressImage, generateSvgCover, deduplicateLogs, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
+import { compressImage, generateSvgCover, deduplicateLogs } from '../utils/helpers';
+import { DEFAULT_TAG_DEFINITIONS } from '../utils/defaultData';
 import { getDisplayCoverUrl } from '../utils/imageProxy';
 
 interface MediaDetailModalProps {

@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Loader2, Plus, Calendar, Tag, Image as ImageIcon, ChevronDown, ChevronUp, Users, MapPin, Settings } from 'lucide-react';
 import { MediaItem, MediaType, Collection, MEDIA_TYPE_LABELS, TagDefinition } from '../types';
-import { generateSvgCover, DEFAULT_TAG_DEFINITIONS } from '../utils/helpers';
+import { generateSvgCover } from '../utils/helpers';
+import { DEFAULT_TAG_DEFINITIONS } from '../utils/defaultData';
 import { apiFetch } from '../utils/api';
 import { getDisplayCoverUrl } from '../utils/imageProxy';
 import FeatureGuideBanner from './FeatureGuideBanner';

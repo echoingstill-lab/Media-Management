@@ -1,6 +1,9 @@
+type MediaType = "book" | "movie" | "tv" | "anime" | "music" | "game" | "other";
+
 type ParsedMedia = {
   title: string;
-  type: "book" | "movie" | "tv" | "anime" | "music" | "game" | "other";
+  originalTitle?: string;
+  type: MediaType;
   creator: string;
   coverUrl: string;
   description: string;
@@ -16,7 +19,10 @@ function applyCors(req: any, res: any): boolean {
     "https://echoingstill-lab.github.io",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-  ].flatMap(value => String(value || "").split(",")).map(value => value.trim().replace(/\/+$/u, "")).filter(Boolean);
+  ]
+    .flatMap(value => String(value || "").split(","))
+    .map(value => value.trim().replace(/\/+$/u, ""))
+    .filter(Boolean);
   const origin = String(req.headers.origin || "").replace(/\/+$/u, "");
   if (origin && allowed.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -44,7 +50,12 @@ function decodeHtml(input: string): string {
 }
 
 function stripHtml(input: string): string {
-  return decodeHtml(input.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "))
+  return decodeHtml(
+    input
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -66,26 +77,57 @@ function getTitleTag(html: string): string {
   return stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
 }
 
-function getInfoValue(html: string, label: string): string {
-  const infoMatch = html.match(/<div[^>]+id=["']info["'][^>]*>([\s\S]*?)<\/div>/i);
-  if (!infoMatch) return "";
-  const infoHtml = infoMatch[1];
-  const labelIndex = infoHtml.indexOf(label);
-  if (labelIndex < 0) return "";
-  const afterLabel = infoHtml.slice(labelIndex + label.length);
-  const endMatch = afterLabel.match(/<br\s*\/?>/i);
-  const segment = endMatch ? afterLabel.slice(0, endMatch.index) : afterLabel.slice(0, 260);
-  return stripHtml(segment.replace(/^[:：\s]*/, ""));
+function getInfoBlock(html: string): string {
+  return html.match(/<div[^>]+id=["']info["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || "";
+}
+
+function getInfoValue(html: string, labels: string[]): string {
+  const infoHtml = getInfoBlock(html);
+  if (!infoHtml) return "";
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`${escaped}\\s*[:：]?\\s*([\\s\\S]*?)(?:<br\\s*\\/?>|</div>|</span>\\s*<br|$)`, "i");
+    const match = infoHtml.match(pattern);
+    const value = stripHtml(match?.[1] || "").replace(/^[:：]\s*/u, "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function firstMatch(text: string, patterns: RegExp[]): string {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) return decodeHtml(value).replace(/\s+/g, " ").trim();
+  }
+  return "";
 }
 
 function isValidImageUrl(url: string): boolean {
-  if (!url) return false;
   return /^https?:\/\//i.test(url) || url.startsWith("//");
 }
 
 function normalizeImageUrl(url: string): string {
   if (!url) return "";
-  return url.startsWith("//") ? `https:${url}` : url;
+  const normalized = url.startsWith("//") ? `https:${url}` : url;
+  return normalized
+    .replace("/s_ratio_poster/", "/l_ratio_poster/")
+    .replace("/m_ratio_poster/", "/l_ratio_poster/")
+    .replace("/mpic/", "/lpic/")
+    .replace("/spic/", "/lpic/");
+}
+
+function extractImageFromHtml(html: string): string {
+  return normalizeImageUrl(
+    getMetaContent(html, "og:image") ||
+      getMetaContent(html, "twitter:image") ||
+      getMetaContent(html, "image") ||
+      firstMatch(html, [
+        /https?:\/\/img\d\.doubanio\.com\/view\/photo\/[^"'<> ]+\.(?:webp|jpg|jpeg|png)/i,
+        /https?:\/\/img\d\.doubanio\.com\/view\/subject\/[^"'<> ]+\.(?:webp|jpg|jpeg|png)/i,
+        /https?:\/\/[^"'<> ]+\.(?:webp|jpg|jpeg|png)/i,
+      ]),
+  );
 }
 
 function extractYear(text: string): string | null {
@@ -94,7 +136,7 @@ function extractYear(text: string): string | null {
 
 async function fetchText(url: string): Promise<{ ok: boolean; status: number; text: string }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+  const timer = setTimeout(() => controller.abort(), 12000);
   try {
     const response = await fetch(url, {
       signal: controller.signal,
@@ -127,34 +169,41 @@ function parseDoubanUrl(input: string): { id: string; section: "book" | "movie" 
     const subjectMatch = parsed.pathname.match(/\/subject\/(\d+)/);
     const id = mobileMatch?.[2] || subjectMatch?.[1];
     if (!id) return null;
+
     let section = mobileMatch?.[1] as "book" | "movie" | "music" | "game" | undefined;
     if (!section) {
       if (parsed.hostname.startsWith("book.")) section = "book";
       else if (parsed.hostname.startsWith("movie.")) section = "movie";
       else if (parsed.hostname.startsWith("music.")) section = "music";
+      else if (parsed.pathname.includes("/game/")) section = "game";
     }
     if (!section) return null;
+
+    const desktopUrl =
+      section === "game"
+        ? `https://www.douban.com/game/subject/${id}/`
+        : `https://${section}.douban.com/subject/${id}/`;
     const mobileUrl = `https://m.douban.com/${section}/subject/${id}/`;
-    return { id, section, candidates: Array.from(new Set([mobileUrl, parsed.toString()])) };
+    return { id, section, candidates: Array.from(new Set([mobileUrl, desktopUrl, parsed.toString()])) };
   } catch {
     return null;
   }
 }
 
 function cleanDoubanTitle(raw: string): string {
-  const withoutSuffix = decodeHtml(raw)
+  const title = decodeHtml(raw)
     .replace(/\s*-\s*(图书|电影|电视剧|唱片|音乐|游戏)\s*$/u, "")
     .replace(/\s*\(豆瓣\)\s*$/u, "")
     .replace(/\s*-\s*豆瓣\s*$/u, "")
-    .replace(/‎/g, "")
+    .replace(/[“”]/g, "")
     .replace(/\s*\((?:19|20)\d{2}\)\s*$/u, "")
     .replace(/\s+/g, " ")
     .trim();
-  const chinesePrefix = withoutSuffix.match(/^([\u4e00-\u9fff][\u4e00-\u9fff·、，。！？《》（）\s]+?)\s+[A-Za-z0-9]/u);
-  return (chinesePrefix?.[1] || withoutSuffix).trim();
+  const chinesePrefix = title.match(/^([\u4e00-\u9fff][\u4e00-\u9fff·、，。！？《》（）\s]+?)\s+[A-Za-z0-9]/u);
+  return (chinesePrefix?.[1] || title).trim();
 }
 
-function inferDoubanType(section: string, title: string, description: string): ParsedMedia["type"] {
+function inferDoubanType(section: string, title: string, description: string): MediaType {
   if (section === "book") return "book";
   if (section === "music") return "music";
   if (section === "game") return "game";
@@ -162,52 +211,6 @@ function inferDoubanType(section: string, title: string, description: string): P
   if (/动画|动漫|anime|番剧/i.test(text)) return "anime";
   if (/电视剧|剧集|集数|series|tv/i.test(text)) return "tv";
   return "movie";
-}
-
-async function parseDoubanSubject(input: string): Promise<ParsedMedia | null> {
-  const douban = parseDoubanUrl(input);
-  if (!douban) return null;
-  const fragments: string[] = [];
-  for (const candidate of douban.candidates) {
-    try {
-      const fetched = await fetchText(candidate);
-      if (fetched.ok && fetched.text) fragments.push(fetched.text);
-    } catch {
-      // Try the next candidate.
-    }
-  }
-  if (!fragments.length) return null;
-  const html = fragments.find(fragment => getMetaContent(fragment, "og:image")) || fragments[0];
-  const combined = fragments.join("\n");
-  const movieAbstract = douban.section === "movie" ? await fetchDoubanMovieAbstract(douban.id) : null;
-  const rawTitle = getMetaContent(html, "og:title") || getTitleTag(html);
-  const title = cleanDoubanTitle(rawTitle && rawTitle !== "豆瓣" ? rawTitle : movieAbstract?.title || "");
-  if (!title) return null;
-  const description = stripHtml(getMetaContent(html, "og:description") || getMetaContent(html, "description"));
-  const cover = normalizeImageUrl(getMetaContent(html, "og:image") || getMetaContent(html, "image"));
-  const creator =
-    (Array.isArray(movieAbstract?.directors) ? movieAbstract.directors.join(" / ") : "") ||
-    getInfoValue(combined, "作者") ||
-    getInfoValue(combined, "导演") ||
-    getInfoValue(combined, "表演者") ||
-    getInfoValue(combined, "开发商") ||
-    "";
-  const ratingText = movieAbstract?.rate || getMetaContent(html, "ratingValue") || combined.match(/ratingValue["']?\s*[:=]\s*["']?(\d+(?:\.\d+)?)/i)?.[1] || "";
-  const rating = Number(ratingText) || null;
-  const keywords = getMetaContent(html, "keywords");
-  const tags = Array.isArray(movieAbstract?.types)
-    ? movieAbstract.types.map(String).filter(Boolean)
-    : keywords ? keywords.split(/[,，/]/).map(tag => tag.trim()).filter(Boolean).slice(0, 8) : [];
-  return {
-    title,
-    type: movieAbstract?.is_tv ? "tv" : inferDoubanType(douban.section, rawTitle, description),
-    creator,
-    coverUrl: isValidImageUrl(cover) ? cover : "",
-    description: description || movieAbstract?.short_comment?.content || "",
-    tags,
-    rating,
-    releaseYear: movieAbstract?.release_year || getInfoValue(combined, "出版年") || getInfoValue(combined, "发行时间") || extractYear(combined),
-  };
 }
 
 async function fetchDoubanMovieAbstract(id: string): Promise<any | null> {
@@ -227,6 +230,86 @@ async function fetchDoubanMovieAbstract(id: string): Promise<any | null> {
   }
 }
 
+function extractDoubanCreator(section: string, combined: string, movieAbstract: any | null): string {
+  if (Array.isArray(movieAbstract?.directors) && movieAbstract.directors.length) {
+    return movieAbstract.directors.join(" / ");
+  }
+  if (section === "book") return getInfoValue(combined, ["作者", "作者:"]);
+  if (section === "music") return getInfoValue(combined, ["表演者", "艺术家", "发行"]);
+  if (section === "game") return getInfoValue(combined, ["开发商", "发行商", "制作发行", "厂商"]);
+  return getInfoValue(combined, ["导演", "作者", "表演者"]);
+}
+
+async function parseDoubanSubject(input: string): Promise<ParsedMedia | null> {
+  const douban = parseDoubanUrl(input);
+  if (!douban) return null;
+
+  const fragments: string[] = [];
+  for (const candidate of douban.candidates) {
+    try {
+      const fetched = await fetchText(candidate);
+      if (fetched.ok && fetched.text) fragments.push(fetched.text);
+    } catch {
+      // Keep trying alternate Douban pages.
+    }
+  }
+  const movieAbstract = douban.section === "movie" ? await fetchDoubanMovieAbstract(douban.id) : null;
+  if (!fragments.length && !movieAbstract) return null;
+  if (!fragments.length && movieAbstract) {
+    const title = cleanDoubanTitle(movieAbstract.title || "");
+    if (!title) return null;
+    return {
+      title,
+      type: movieAbstract.is_tv ? "tv" : "movie",
+      creator: Array.isArray(movieAbstract.directors) ? movieAbstract.directors.join(" / ") : "",
+      coverUrl: "",
+      description: movieAbstract.short_comment?.content || "",
+      tags: Array.isArray(movieAbstract.types) ? movieAbstract.types.map(String).filter(Boolean) : [],
+      rating: Number(movieAbstract.rate) || null,
+      releaseYear: movieAbstract.release_year || null,
+    };
+  }
+
+  const html = fragments.find(fragment => getMetaContent(fragment, "og:title")) || fragments[0];
+  const combined = fragments.join("\n");
+  const pageTitle = getMetaContent(html, "og:title") || getTitleTag(html) || "";
+  const rawTitle = pageTitle && pageTitle !== "豆瓣" ? pageTitle : movieAbstract?.title || pageTitle;
+  const title = cleanDoubanTitle(rawTitle);
+  if (!title) return null;
+
+  const description =
+    stripHtml(getMetaContent(html, "og:description") || getMetaContent(html, "description")) ||
+    movieAbstract?.short_comment?.content ||
+    "";
+  const cover = extractImageFromHtml(combined);
+  const ratingText =
+    movieAbstract?.rate ||
+    getMetaContent(html, "ratingValue") ||
+    combined.match(/ratingValue["']?\s*[:=]\s*["']?(\d+(?:\.\d+)?)/i)?.[1] ||
+    combined.match(/rating_num[^>]*>\s*(\d+(?:\.\d+)?)/i)?.[1] ||
+    "";
+  const keywords = getMetaContent(html, "keywords");
+  const tags = Array.isArray(movieAbstract?.types)
+    ? movieAbstract.types.map(String).filter(Boolean)
+    : keywords
+      ? keywords.split(/[,，、]/).map(tag => tag.trim()).filter(Boolean).slice(0, 8)
+      : [];
+
+  return {
+    title,
+    type: movieAbstract?.is_tv ? "tv" : inferDoubanType(douban.section, rawTitle, description),
+    creator: extractDoubanCreator(douban.section, combined, movieAbstract),
+    coverUrl: isValidImageUrl(cover) ? cover : "",
+    description,
+    tags,
+    rating: Number(ratingText) || null,
+    releaseYear:
+      movieAbstract?.release_year ||
+      getInfoValue(combined, ["出版年", "发行时间", "上映日期"]) ||
+      extractYear(combined),
+  };
+}
+
 function parseSteamUrl(input: string): { appId: string; slug: string } | null {
   try {
     const parsed = new URL(input);
@@ -242,7 +325,7 @@ async function parseSteamSubject(input: string): Promise<ParsedMedia | null> {
   const steam = parseSteamUrl(input);
   if (!steam) return null;
   try {
-    const response = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam.appId}&l=schinese`, {
+    const response = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam.appId}&l=schinese&cc=cn`, {
       headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
     });
     if (response.ok) {
@@ -277,6 +360,48 @@ async function parseSteamSubject(input: string): Promise<ParsedMedia | null> {
   };
 }
 
+function parseAppleMusicUrl(input: string): { id: string; country: string } | null {
+  try {
+    const parsed = new URL(input);
+    if (!parsed.hostname.includes("music.apple.com")) return null;
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const country = parts[0] || "us";
+    const id = parsed.pathname.match(/\/(?:album|song|music-video)\/[^/]+\/(\d+)/)?.[1] || parsed.searchParams.get("i") || "";
+    return id ? { id, country } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function parseAppleMusicSubject(input: string): Promise<ParsedMedia | null> {
+  const apple = parseAppleMusicUrl(input);
+  if (!apple) return null;
+  try {
+    const response = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(apple.id)}&country=${encodeURIComponent(apple.country)}&entity=album,song,musicVideo`, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const item = Array.isArray(payload?.results) ? payload.results[0] : null;
+    if (!item) return null;
+    const title = String(item.collectionName || item.trackName || "").trim();
+    if (!title) return null;
+    const cover = String(item.artworkUrl100 || "").replace(/\/100x100bb\.(jpg|png|webp)$/i, "/600x600bb.$1");
+    return {
+      title,
+      type: "music",
+      creator: String(item.artistName || "").trim(),
+      coverUrl: isValidImageUrl(cover) ? cover : "",
+      description: [item.primaryGenreName, item.releaseDate ? `发行时间：${String(item.releaseDate).slice(0, 10)}` : ""].filter(Boolean).join(" / "),
+      tags: item.primaryGenreName ? [String(item.primaryGenreName)] : [],
+      rating: null,
+      releaseYear: extractYear(item.releaseDate || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function parseImdbUrl(input: string): string | null {
   try {
     const parsed = new URL(input);
@@ -287,27 +412,55 @@ function parseImdbUrl(input: string): string | null {
   }
 }
 
+function parseJsonLdMedia(html: string): Partial<ParsedMedia> {
+  const scripts = Array.from(html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi));
+  for (const script of scripts) {
+    try {
+      const parsed = JSON.parse(decodeHtml(script[1]).trim());
+      const nodes = Array.isArray(parsed) ? parsed : [parsed];
+      const media = nodes.find((node: any) => node?.name || node?.headline);
+      if (!media) continue;
+      const director = Array.isArray(media.director) ? media.director : media.director ? [media.director] : [];
+      const author = Array.isArray(media.author) ? media.author : media.author ? [media.author] : [];
+      const creator = [...director, ...author].map((person: any) => person?.name || person).filter(Boolean).join(" / ");
+      return {
+        title: String(media.name || media.headline || "").trim(),
+        creator,
+        coverUrl: normalizeImageUrl(Array.isArray(media.image) ? media.image[0] : media.image || ""),
+        description: stripHtml(media.description || ""),
+        rating: Number(media.aggregateRating?.ratingValue) || null,
+        releaseYear: extractYear(media.datePublished || ""),
+      };
+    } catch {
+      // Ignore malformed JSON-LD blocks.
+    }
+  }
+  return {};
+}
+
 async function parseImdbSubject(input: string): Promise<ParsedMedia | null> {
   const imdbId = parseImdbUrl(input);
   if (!imdbId) return null;
   try {
+    const page = await fetchText(`https://www.imdb.com/title/${imdbId}/`);
+    const jsonLd = page.ok ? parseJsonLdMedia(page.text) : {};
     const response = await fetch(`https://v3.sg.media-imdb.com/suggestion/t/${imdbId}.json`, {
       headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
     });
-    if (!response.ok) return null;
-    const payload = await response.json();
+    const payload = response.ok ? await response.json() : null;
     const item = Array.isArray(payload?.d) ? payload.d.find((entry: any) => entry?.id === imdbId) || payload.d[0] : null;
-    if (!item?.l) return null;
-    const qid = String(item.qid || item.q || "").toLowerCase();
+    const qid = String(item?.qid || item?.q || "").toLowerCase();
+    const title = String(jsonLd.title || item?.l || "").trim();
+    if (!title) return null;
     return {
-      title: String(item.l).trim(),
+      title,
       type: qid.includes("tv") ? "tv" : qid.includes("game") ? "game" : "movie",
-      creator: String(item.s || "").trim(),
-      coverUrl: isValidImageUrl(item.i?.imageUrl || "") ? item.i.imageUrl : "",
-      description: "",
+      creator: String(jsonLd.creator || item?.s || "").trim(),
+      coverUrl: isValidImageUrl(jsonLd.coverUrl || item?.i?.imageUrl || "") ? String(jsonLd.coverUrl || item?.i?.imageUrl) : "",
+      description: jsonLd.description || "",
       tags: [],
-      rating: null,
-      releaseYear: item.y || null,
+      rating: typeof jsonLd.rating === "number" ? jsonLd.rating : null,
+      releaseYear: jsonLd.releaseYear || item?.y || null,
     };
   } catch {
     return null;
@@ -325,7 +478,7 @@ function normalizeCommonUrl(input: string): string {
   return parsed.toString();
 }
 
-function inferCommonType(hostname: string, title: string, description: string, ogType: string): ParsedMedia["type"] {
+function inferCommonType(hostname: string, title: string, description: string, ogType: string): MediaType {
   const host = hostname.toLowerCase();
   const text = `${title} ${description} ${ogType}`;
   if (host.includes("steampowered.com")) return "game";
@@ -352,16 +505,35 @@ function cleanCommonTitle(hostname: string, raw: string): string {
   if (hostname.includes("music.163.com")) title = title.replace(/\s*-\s*网易云音乐\s*$/u, "").trim();
   if (hostname.includes("bangumi.tv") || hostname.includes("bgm.tv") || hostname.includes("chii.in")) title = title.replace(/\s*\|\s*番组计划\s*$/u, "").trim();
   if (hostname.includes("music.apple.com")) {
-    const match = title.match(/《([^》]+)》/u);
-    if (match) return match[1].trim();
+    title = title.replace(/\s+by\s+.+?\s+on\s+Apple Music\s*$/iu, "").trim();
   }
   return title.split(/\s+-\s+/)[0]?.trim() || title;
 }
 
 function extractCreator(hostname: string, rawTitle: string, description: string): string {
-  if (hostname.includes("music.163.com")) return description.match(/由\s+(.+?)\s+演唱/u)?.[1]?.trim() || rawTitle.split(/\s+-\s+/)[1]?.trim() || "";
-  if (hostname.includes("music.apple.com")) return rawTitle.match(/-\s*(.+?)的专辑/u)?.[1]?.trim() || "";
-  return description.match(/作者[:：]\s*([^，。]+)/u)?.[1]?.trim() || "";
+  if (hostname.includes("music.163.com")) {
+    return firstMatch(`${description} ${rawTitle}`, [
+      /由\s+(.+?)\s+演唱/u,
+      /歌手[：:]\s*([^，。]+)/u,
+      /\s+-\s*([^-\n]+?)\s*-\s*网易云音乐/u,
+    ]);
+  }
+  if (hostname.includes("music.apple.com")) {
+    return firstMatch(`${rawTitle} ${description}`, [
+      /\s+by\s+(.+?)\s+on\s+Apple Music/iu,
+      /Album\s*·\s*[^·]+·\s*([^·。]+)/iu,
+      /专辑\s*·\s*[^·]+·\s*([^·。]+)/iu,
+    ]);
+  }
+  if (hostname.includes("wikipedia.org")) {
+    return firstMatch(description, [
+      /作家([^，。]+?)创作/u,
+      /作家([^，。]+?)所著/u,
+      /由([^，。]+?)执导/u,
+      /由([^，。]+?)开发/u,
+    ]);
+  }
+  return firstMatch(description, [/作者[：:]\s*([^，。]+)/u, /导演[：:]\s*([^，。]+)/u]);
 }
 
 async function parseCommonMetadata(input: string): Promise<ParsedMedia | null> {
@@ -370,26 +542,34 @@ async function parseCommonMetadata(input: string): Promise<ParsedMedia | null> {
   if (imdb) return imdb;
   const steam = await parseSteamSubject(input);
   if (steam) return steam;
+  const appleMusic = await parseAppleMusicSubject(input);
+  if (appleMusic) return appleMusic;
   const normalized = normalizeCommonUrl(input);
   const parsed = new URL(normalized);
-  const fetched = await fetchText(normalized);
+  let fetched: { ok: boolean; status: number; text: string };
+  try {
+    fetched = await fetchText(normalized);
+  } catch {
+    return null;
+  }
   if (!fetched.ok || !fetched.text) return null;
   const html = fetched.text;
-  const rawTitle = getMetaContent(html, "og:title") || getMetaContent(html, "twitter:title") || getTitleTag(html);
-  const description = stripHtml(getMetaContent(html, "og:description") || getMetaContent(html, "description"));
-  const cover = normalizeImageUrl(getMetaContent(html, "og:image") || getMetaContent(html, "twitter:image") || getMetaContent(html, "image"));
+  const jsonLd = parseJsonLdMedia(html);
+  const rawTitle = getMetaContent(html, "og:title") || getMetaContent(html, "twitter:title") || getTitleTag(html) || jsonLd.title || "";
+  const description = stripHtml(getMetaContent(html, "og:description") || getMetaContent(html, "description") || jsonLd.description || "");
+  const cover = extractImageFromHtml(html) || jsonLd.coverUrl || "";
   const ogType = getMetaContent(html, "og:type");
-  const title = cleanCommonTitle(parsed.hostname, rawTitle);
+  const title = cleanCommonTitle(parsed.hostname, String(rawTitle));
   if (!title || ["403 forbidden", "access denied"].includes(title.toLowerCase())) return null;
   return {
     title,
     type: inferCommonType(parsed.hostname, title, description, ogType),
-    creator: extractCreator(parsed.hostname, rawTitle, description),
-    coverUrl: isValidImageUrl(cover) ? cover : "",
+    creator: extractCreator(parsed.hostname, String(rawTitle), description) || jsonLd.creator || "",
+    coverUrl: isValidImageUrl(String(cover)) ? String(cover) : "",
     description,
     tags: [],
-    rating: null,
-    releaseYear: extractYear(`${rawTitle} ${description}`),
+    rating: typeof jsonLd.rating === "number" ? jsonLd.rating : null,
+    releaseYear: jsonLd.releaseYear || extractYear(`${rawTitle} ${description}`),
   };
 }
 
@@ -399,11 +579,11 @@ export default async function handler(req: any, res: any) {
   try {
     const { url } = typeof req.body === "object" && req.body ? req.body : {};
     if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "Please provide a valid URL." });
+      return res.status(400).json({ error: "请提供有效链接。" });
     }
     const input = url.trim();
     if (!isUrlInput(input)) {
-      return res.status(400).json({ error: "Vercel 线上版当前支持链接解析；纯作品名请先手动录入，或后续接入 AI 解析。" });
+      return res.status(400).json({ error: "线上版当前支持链接解析；纯作品名请先手动录入，或后续接入 AI 解析。" });
     }
     const douban = await parseDoubanSubject(input);
     if (douban) return res.status(200).json({ success: true, data: douban, remaining: 999, source: "douban" });

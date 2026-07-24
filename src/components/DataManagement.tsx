@@ -75,6 +75,24 @@ function normalizeImportedCoverUrl(url: string): string {
     .replace('/spic/', '/lpic/');
 }
 
+function inferCreatorFromImportedIntro(type: MediaType, intro: string): string {
+  const cleanIntro = intro.replace(/\s+/g, ' ').trim();
+  if (!cleanIntro) return '';
+  const segments = cleanIntro.split(/\s*\/\s*/).map(part => part.trim()).filter(Boolean);
+  if (!segments.length) return '';
+
+  if (type === 'book' || type === 'music') {
+    const first = segments[0];
+    return /(?:19|20)\d{2}/.test(first) ? '' : first;
+  }
+
+  if (type === 'game') {
+    return segments.find(part => /Nintendo|任天堂|FromSoftware|Valve|Ubisoft|Square Enix|CAPCOM|卡普空|开发|发行/i.test(part)) || '';
+  }
+
+  return '';
+}
+
 export default function DataManagement({
   mediaItems,
   collections,
@@ -249,13 +267,13 @@ export default function DataManagement({
         const originalTitleIndex = normalizedHeaders.findIndex(h => h.includes('原名') || h.includes('原始标题') || h.includes('originaltitle') || h.includes('original_title') || h.includes('original'));
         const ratingIndex = normalizedHeaders.findIndex(h => h.includes('评分') || h.includes('rating') || h.includes('star') || h.includes('星级'));
         const noteIndex = normalizedHeaders.findIndex(h => h.includes('短评') || h.includes('附言') || h.includes('comment') || h.includes('note') || h.includes('我的评价'));
-        const creatorIndex = normalizedHeaders.findIndex(h => h.includes('导演') || h.includes('作者') || h.includes('creator') || h.includes('author') || h.includes('director') || h.includes('制作'));
+        const creatorIndex = normalizedHeaders.findIndex(h => h.includes('导演') || h.includes('作者') || h.includes('歌手') || h.includes('主创') || h.includes('厂商') || h.includes('creator') || h.includes('author') || h.includes('director') || h.includes('制作'));
         const typeIndex = normalizedHeaders.findIndex(h => h.includes('类型') || h.includes('type') || h.includes('分类'));
         const tagsIndex = normalizedHeaders.findIndex(h => h.includes('标签') || h.includes('tag') || h.includes('label'));
         const statusIndex = normalizedHeaders.findIndex(h => h.includes('状态') || h.includes('status'));
         const dateIndex = normalizedHeaders.findIndex(h => h.includes('标记日期') || h.includes('完成日期') || h.includes('markeddate') || h.includes('marked_date') || h.includes('date'));
         const linkIndex = normalizedHeaders.findIndex(h => h === 'link' || h.includes('链接') || h.includes('豆瓣') || h.includes('url'));
-        const coverIndex = normalizedHeaders.findIndex(h => h.includes('封面') || h.includes('cover'));
+        const coverIndex = normalizedHeaders.findIndex(h => h.includes('封面') || h.includes('图片') || h.includes('cover'));
         const introIndex = normalizedHeaders.findIndex(h => h.includes('简介') || h.includes('摘要') || h.includes('intro'));
 
         // Skip header line
@@ -274,8 +292,6 @@ export default function DataManagement({
 
           if (!cleanTitle) continue;
 
-          // Resolve Creator
-          const cleanCreator = creatorIndex !== -1 ? cleanCell(cols[creatorIndex]) : '';
           const sourceUrl = linkIndex !== -1 ? cleanCell(cols[linkIndex]) : '';
           const coverUrl = coverIndex !== -1 ? normalizeImportedCoverUrl(cleanCell(cols[coverIndex])) : '';
           const completedDate = dateIndex !== -1 ? cleanCell(cols[dateIndex]) : '';
@@ -316,20 +332,23 @@ export default function DataManagement({
           let parsedType = defaultImportType;
           if (typeIndex !== -1 && cols[typeIndex]) {
             const tVal = cleanCell(cols[typeIndex]).toLowerCase();
-            if (tVal.includes('书') || tVal.includes('book') || tVal.includes('read')) {
+            if (tVal.includes('书') || tVal.includes('图书') || tVal.includes('book') || tVal.includes('read')) {
               parsedType = 'book';
             } else if (tVal.includes('影') || tVal.includes('movie') || tVal.includes('电影')) {
               parsedType = 'movie';
-            } else if (tVal.includes('剧') || tVal.includes('tv') || tVal.includes('电视')) {
+            } else if (tVal.includes('剧') || tVal.includes('电视') || tVal.includes('tv')) {
               parsedType = 'tv';
-            } else if (tVal.includes('音') || tVal.includes('music') || tVal.includes('cd') || tVal.includes('歌')) {
+            } else if (tVal.includes('音') || tVal.includes('歌曲') || tVal.includes('专辑') || tVal.includes('music') || tVal.includes('cd') || tVal.includes('歌')) {
               parsedType = 'music';
-            } else if (tVal.includes('漫') || tVal.includes('anime') || tVal.includes('动画')) {
+            } else if (tVal.includes('漫') || tVal.includes('动画') || tVal.includes('anime')) {
               parsedType = 'anime';
             } else if (tVal.includes('游') || tVal.includes('game')) {
               parsedType = 'game';
             }
           }
+
+          // Resolve Creator after media type is known; Douban exports often put author/artist in intro.
+          const cleanCreator = creatorIndex !== -1 ? cleanCell(cols[creatorIndex]) : inferCreatorFromImportedIntro(parsedType, introText);
 
           // Resolve Status
           let parsedStatus: MediaItem['status'] = 'completed';

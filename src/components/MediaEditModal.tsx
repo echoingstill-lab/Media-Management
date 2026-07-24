@@ -37,6 +37,7 @@ export default function MediaEditModal({
   const [creator, setCreator] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
   const [status, setStatus] = useState<MediaItem['status']>('wishlist');
   const [progressText, setProgressText] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -127,6 +128,7 @@ export default function MediaEditModal({
       setCreator(item.creator || '');
       setCoverUrl(item.coverUrl || '');
       setDescription(item.description || '');
+      setSourceUrl(item.sourceUrl || '');
       setStatus(item.status);
       setProgressText(item.progressText || '');
       setStartDate(item.startDate || '');
@@ -145,6 +147,7 @@ export default function MediaEditModal({
       setCreator('');
       setCoverUrl('');
       setDescription('');
+      setSourceUrl('');
       setStatus('wishlist');
       setProgressText('');
       setStartDate('');
@@ -202,6 +205,8 @@ export default function MediaEditModal({
       setCreator(media.creator || '');
       setCoverUrl(media.coverUrl || '');
       setDescription(media.description || '');
+      setSourceUrl(linkInput.trim());
+      setShowAdvanced(true);
       if (media.tags && Array.isArray(media.tags)) {
         const merged = Array.from(new Set([...selectedTags, ...media.tags]));
         setSelectedTags(merged);
@@ -258,7 +263,7 @@ export default function MediaEditModal({
       creator: creator.trim(),
       coverUrl: finalCover,
       description: description.trim(),
-      sourceUrl: item?.sourceUrl,
+      sourceUrl: sourceUrl.trim() || undefined,
       status,
       progressText: status === 'progress' ? progressText.trim() : '',
       startDate: startDate || undefined,

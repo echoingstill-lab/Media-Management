@@ -33,8 +33,8 @@ function getCardSizedImageUrl(parsed: URL): string {
   if (host.endsWith('doubanio.com')) {
     parsed.pathname = path
       .replace('/l_ratio_poster/', '/m_ratio_poster/')
+      .replace('/view/subject/l/', '/view/subject/m/')
       .replace('/lpic/', '/mpic/')
-      .replace('/public/s', '/public/m');
   }
 
   if (host.endsWith('mzstatic.com')) {

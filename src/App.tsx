@@ -105,7 +105,35 @@ function normalizeLegacyMediaItem(item: MediaItem): MediaItem {
 }
 
 function normalizeMediaItems(items: MediaItem[]): MediaItem[] {
-  return items.map(normalizeLegacyMediaItem);
+  return normalizeMediaTypes(items.map(normalizeLegacyMediaItem));
+}
+
+function inferMediaTypeFromMetadata(item: MediaItem): MediaType {
+  if (item.type !== 'movie' && item.type !== 'tv' && item.type !== 'anime') return item.type;
+  const text = [
+    item.title,
+    item.originalTitle,
+    item.description,
+    item.sourceUrl,
+    ...(item.tags || []),
+  ].filter(Boolean).join(' / ').toLowerCase();
+
+  if (/(动画|動漫|动漫|anime|animation|ova|剧场版|番剧|新番|アニメ)/i.test(text)) {
+    return 'anime';
+  }
+
+  if (/(电视剧|電視劇|剧集|劇集|迷你剧|迷你劇|连续剧|連續劇|美剧|英剧|日剧|韩剧|港剧|台剧|第\s*\d+\s*季|season\s*\d+|tv series|episodes?|集数|全\s*\d+\s*集)/i.test(text)) {
+    return 'tv';
+  }
+
+  return item.type;
+}
+
+function normalizeMediaTypes(items: MediaItem[]): MediaItem[] {
+  return items.map(item => ({
+    ...item,
+    type: inferMediaTypeFromMetadata(item),
+  }));
 }
 
 function getArchiveGridColumnsForWidth(width: number): number {

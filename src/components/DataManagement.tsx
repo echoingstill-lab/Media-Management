@@ -107,6 +107,27 @@ function inferCreatorFromImportedIntro(type: MediaType, intro: string): string {
   return '';
 }
 
+function inferVideoSubtypeFromText(baseType: MediaType, fields: string[]): MediaType {
+  if (baseType !== 'movie' && baseType !== 'tv' && baseType !== 'anime') return baseType;
+
+  const text = fields
+    .filter(Boolean)
+    .join(' / ')
+    .toLowerCase();
+
+  if (!text) return baseType;
+
+  if (/(动画|動漫|动漫|anime|animation|ova|剧场版|番剧|新番|アニメ)/i.test(text)) {
+    return 'anime';
+  }
+
+  if (/(电视剧|電視劇|剧集|劇集|迷你剧|迷你劇|连续剧|連續劇|美剧|英剧|日剧|韩剧|港剧|台剧|第\s*\d+\s*季|season\s*\d+|tv series|episodes?|集数|全\s*\d+\s*集)/i.test(text)) {
+    return 'tv';
+  }
+
+  return baseType;
+}
+
 export default function DataManagement({
   mediaItems,
   collections,
@@ -352,18 +373,24 @@ export default function DataManagement({
             const tVal = cleanCell(cols[typeIndex]).toLowerCase();
             if (tVal.includes('书') || tVal.includes('图书') || tVal.includes('book') || tVal.includes('read')) {
               parsedType = 'book';
-            } else if (tVal.includes('影') || tVal.includes('movie') || tVal.includes('电影')) {
-              parsedType = 'movie';
-            } else if (tVal.includes('剧') || tVal.includes('电视') || tVal.includes('tv')) {
-              parsedType = 'tv';
-            } else if (tVal.includes('音') || tVal.includes('歌曲') || tVal.includes('专辑') || tVal.includes('music') || tVal.includes('cd') || tVal.includes('歌')) {
-              parsedType = 'music';
             } else if (tVal.includes('漫') || tVal.includes('动画') || tVal.includes('anime')) {
               parsedType = 'anime';
+            } else if (tVal.includes('剧') || tVal.includes('电视') || tVal.includes('tv') || tVal.includes('series')) {
+              parsedType = 'tv';
+            } else if (tVal.includes('影') || tVal.includes('movie') || tVal.includes('电影')) {
+              parsedType = 'movie';
+            } else if (tVal.includes('音') || tVal.includes('歌曲') || tVal.includes('专辑') || tVal.includes('music') || tVal.includes('cd') || tVal.includes('歌')) {
+              parsedType = 'music';
             } else if (tVal.includes('游') || tVal.includes('game')) {
               parsedType = 'game';
             }
           }
+          parsedType = inferVideoSubtypeFromText(parsedType, [
+            cleanTitle,
+            titleParts.originalTitle,
+            introText,
+            sourceUrl,
+          ]);
 
           // Resolve Creator after media type is known; Douban exports often put author/artist in intro.
           const cleanCreator = creatorIndex !== -1 ? cleanCell(cols[creatorIndex]) : inferCreatorFromImportedIntro(parsedType, introText);

@@ -36,6 +36,28 @@
     return 'other';
   }
 
+  function inferMovieSubtype(row) {
+    if (row.type !== 'movie') return row.type;
+
+    const text = [
+      row.title,
+      row.originalTitle,
+      row.intro,
+      row.link,
+      row.sourcePage,
+    ].filter(Boolean).join(' / ').toLowerCase();
+
+    if (/(动画|動漫|动漫|anime|animation|ova|剧场版|番剧|新番|アニメ)/i.test(text)) {
+      return 'anime';
+    }
+
+    if (/(电视剧|電視劇|剧集|劇集|迷你剧|迷你劇|连续剧|連續劇|美剧|英剧|日剧|韩剧|港剧|台剧|第\s*\d+\s*季|season\s*\d+|tv series|episodes?|集数|全\s*\d+\s*集)/i.test(text)) {
+      return 'tv';
+    }
+
+    return row.type;
+  }
+
   function getStatus(url = location.href) {
     const parsed = new URL(url, location.href);
     const status = parsed.searchParams.get('status');
@@ -116,7 +138,7 @@
       getText(item.querySelector('.short-note')) ||
       getText(item.querySelector('.tags'));
 
-    return {
+    const row = {
       title,
       originalTitle,
       type: getMediaType(pageUrl),
@@ -129,6 +151,8 @@
       cover,
       sourcePage: pageUrl,
     };
+    row.type = inferMovieSubtype(row);
+    return row;
   }
 
   function parsePage(html, pageUrl) {

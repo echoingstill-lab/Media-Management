@@ -93,6 +93,34 @@ function normalizeMediaItems(items: MediaItem[]): MediaItem[] {
   return items.map(normalizeLegacyMediaItem);
 }
 
+function getArchiveGridColumnsForWidth(width: number): number {
+  if (width >= 1024) return 6;
+  if (width >= 768) return 4;
+  if (width >= 640) return 3;
+  return 2;
+}
+
+function getCurrentArchiveGridColumns(): number {
+  if (typeof window === 'undefined') return 6;
+  return getArchiveGridColumnsForWidth(window.innerWidth);
+}
+
+function getArchivePageSize(totalItems: number, columns: number): number {
+  const basePageSize = columns * 6;
+  if (totalItems <= basePageSize) return basePageSize;
+
+  const basePages = Math.ceil(totalItems / basePageSize);
+  const lastPageItems = totalItems % basePageSize;
+  const sparseLastPageLimit = columns * 3;
+
+  if (basePages > 1 && lastPageItems > 0 && lastPageItems < sparseLastPageLimit) {
+    const targetPages = basePages - 1;
+    return Math.ceil(Math.ceil(totalItems / targetPages) / columns) * columns;
+  }
+
+  return basePageSize;
+}
+
 export default function App() {
   // Helper for user-scoped storage key
   const getStorageKey = (keyType: 'items' | 'collections' | 'logs' | 'tags', username: string | null, isAdminUser: boolean) => {
@@ -361,11 +389,20 @@ export default function App() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<MediaItem['status'] | 'all'>('all');
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | 'all'>('all');
-  const ARCHIVE_PAGE_SIZE = 36;
+  const [archiveGridColumns, setArchiveGridColumns] = useState(getCurrentArchiveGridColumns);
   const [archivePage, setArchivePage] = useState(1);
   const archiveDragStateRef = React.useRef({ startX: 0, active: false, moved: false });
   const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
   const [recoverySnapshotTick, setRecoverySnapshotTick] = useState(0);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setArchiveGridColumns(getCurrentArchiveGridColumns());
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // --- Modal Popups Trigger State ---
   const [activeMediaDetailId, setActiveMediaDetailId] = useState<string | null>(null);
@@ -1357,10 +1394,11 @@ export default function App() {
       return idxA - idxB;
     });
 
-  const totalArchivePages = Math.max(1, Math.ceil(filteredItems.length / ARCHIVE_PAGE_SIZE));
+  const archivePageSize = getArchivePageSize(filteredItems.length, archiveGridColumns);
+  const totalArchivePages = Math.max(1, Math.ceil(filteredItems.length / archivePageSize));
   const currentArchivePage = Math.min(archivePage, totalArchivePages);
-  const archivePageStart = (currentArchivePage - 1) * ARCHIVE_PAGE_SIZE;
-  const visibleFilteredItems = filteredItems.slice(archivePageStart, archivePageStart + ARCHIVE_PAGE_SIZE);
+  const archivePageStart = (currentArchivePage - 1) * archivePageSize;
+  const visibleFilteredItems = filteredItems.slice(archivePageStart, archivePageStart + archivePageSize);
   const filteredItemCoverSignature = filteredItems.map(item => `${item.id}:${item.coverUrl || ''}`).join('|');
 
   useEffect(() => {
@@ -1385,8 +1423,8 @@ export default function App() {
 
     const preloadPage = (page: number) => {
       const wrapped = ((page - 1 + totalArchivePages) % totalArchivePages) + 1;
-      const start = (wrapped - 1) * ARCHIVE_PAGE_SIZE;
-      filteredItems.slice(start, start + ARCHIVE_PAGE_SIZE).forEach(item => {
+      const start = (wrapped - 1) * archivePageSize;
+      filteredItems.slice(start, start + archivePageSize).forEach(item => {
         if (!item.coverUrl) return;
         const image = new Image();
         image.decoding = 'async';
@@ -1407,7 +1445,7 @@ export default function App() {
 
     const timerId = window.setTimeout(run, 250);
     return () => window.clearTimeout(timerId);
-  }, [selectedTab, currentArchivePage, totalArchivePages, filteredItemCoverSignature]);
+  }, [selectedTab, currentArchivePage, totalArchivePages, archivePageSize, filteredItemCoverSignature]);
 
   const archivePageNumbers = Array.from(new Set([
     1,
@@ -1420,7 +1458,7 @@ export default function App() {
   const renderArchivePagination = (position: 'top' | 'bottom') => (
     <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-zinc-400 font-serif ${position === 'bottom' ? 'pt-2' : ''}`}>
       <span>
-        第 {currentArchivePage} / {totalArchivePages} 页，每页 {ARCHIVE_PAGE_SIZE} 项，共 {filteredItems.length} 项
+        第 {currentArchivePage} / {totalArchivePages} 页，每页最多 {archivePageSize} 项，共 {filteredItems.length} 项
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
         <button

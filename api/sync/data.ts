@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { gunzipSync } from "zlib";
 
 const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/+$/u, "");
 const supabaseServiceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
@@ -25,11 +26,9 @@ function applyCors(req: any, res: any): boolean {
   }
   return false;
 }
-
 function sendJson(res: any, statusCode: number, data: unknown): void {
   res.status(statusCode).json(data);
 }
-
 function isConfigured(): boolean {
   return Boolean(supabaseUrl && supabaseServiceRoleKey && syncAuthSecret);
 }
@@ -67,10 +66,10 @@ async function supabaseRest(pathname: string, init: RequestInit = {}): Promise<R
 export default async function handler(req: any, res: any) {
   if (applyCors(req, res)) return;
   if (!isConfigured()) {
-    return sendJson(res, 503, { success: false, error: "云同步尚未配置。请联系部署者开启云同步。" });
+    return sendJson(res, 503, { success: false, error: "Cloud sync is not configured." });
   }
   const user = getAuthUser(req);
-  if (!user) return sendJson(res, 401, { error: "请先登录云同步账号。" });
+  if (!user) return sendJson(res, 401, { error: "Please sign in to cloud sync first." });
 
   try {
     if (req.method === "GET") {
@@ -89,9 +88,18 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === "PUT") {
-      const { payload, baseUpdatedAt, force } = typeof req.body === "object" && req.body ? req.body : {};
+      const { payload: rawPayload, payloadGzipBase64, baseUpdatedAt, force } = typeof req.body === "object" && req.body ? req.body : {};
+      let payload = rawPayload;
+      if (!payload && typeof payloadGzipBase64 === "string" && payloadGzipBase64.trim()) {
+        try {
+          const unzipped = gunzipSync(Buffer.from(payloadGzipBase64, "base64")).toString("utf8");
+          payload = JSON.parse(unzipped);
+        } catch {
+          return sendJson(res, 400, { error: "Compressed sync payload is invalid." });
+        }
+      }
       if (!payload || typeof payload !== "object") {
-        return sendJson(res, 400, { error: "无效的同步数据。" });
+        return sendJson(res, 400, { error: "Invalid sync payload." });
       }
 
       const existingRes = await supabaseRest(
@@ -102,7 +110,7 @@ export default async function handler(req: any, res: any) {
       const existing = Array.isArray(existingRows) ? existingRows[0] : null;
       if (existing?.updated_at && baseUpdatedAt && existing.updated_at !== baseUpdatedAt && !force) {
         return sendJson(res, 409, {
-          error: "云端数据已变化，请先选择从云端恢复，或确认用本机覆盖云端。",
+          error: "Cloud data changed. Pull cloud data first or force local overwrite.",
           conflict: { updatedAt: existing.updated_at },
         });
       }
@@ -130,6 +138,6 @@ export default async function handler(req: any, res: any) {
 
     return sendJson(res, 405, { error: "Method not allowed." });
   } catch (error: any) {
-    return sendJson(res, 500, { error: error.message || "同步失败。" });
+    return sendJson(res, 500, { error: error.message || "Sync failed." });
   }
 }

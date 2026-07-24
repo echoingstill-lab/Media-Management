@@ -6,5 +6,6 @@ coverage/
 .DS_Store
 *.log
 logs/
+backups/
 .env*
 !.env.example

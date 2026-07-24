@@ -23,6 +23,12 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
   const typeLabel = MEDIA_TYPE_LABELS[item.type];
 
   const isLiked = item.personalRating >= 8; // rating >= 8 is recommended
+  const cleanOriginalTitle = (item.originalTitle || '').trim();
+  const shouldShowOriginalTitle =
+    cleanOriginalTitle &&
+    cleanOriginalTitle !== item.title &&
+    !cleanOriginalTitle.startsWith(`${item.title} (`) &&
+    !cleanOriginalTitle.startsWith(`${item.title}（`);
 
   const aspectClass = 'aspect-[3/4]';
 
@@ -74,9 +80,9 @@ export default function MediaCard({ item, onClick, onContextMenu, onStatusChange
           <h4 className="text-white font-bold text-[13px] line-clamp-1 leading-snug tracking-tight font-serif">
             {item.title}
           </h4>
-          {item.originalTitle && (
+          {shouldShowOriginalTitle && (
             <div className="text-[10px] text-zinc-300/80 line-clamp-1 font-serif italic mt-0.5">
-              {item.originalTitle}
+              {cleanOriginalTitle}
             </div>
           )}
 

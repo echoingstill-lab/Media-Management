@@ -1,5 +1,4 @@
 import { CheckInHabit, CheckInLog, Collection, MediaItem, TagDefinition } from '../types';
-import { generateSvgCover } from './helpers';
 
 export const DEFAULT_TAG_DEFINITIONS: TagDefinition[] = [
   { id: 'tag-test-global', name: '解析测试', mediaType: 'global' },
@@ -116,8 +115,8 @@ export const DEFAULT_MEDIA_ITEMS: MediaItem[] = [
     originalTitle: 'ゼルダの伝説 ブレス オブ ザ ワイルド',
     type: 'game',
     creator: '',
-    coverUrl: generateSvgCover('塞尔达传说 旷野之息', 'Nintendo', 'game'),
-    description: '用于验证豆瓣游戏链接。当前豆瓣游戏页面经常缺少制作方和封面，需要继续修复。',
+    coverUrl: 'https://upload.wikimedia.org/wikipedia/en/c/c6/The_Legend_of_Zelda_Breath_of_the_Wild.jpg',
+    description: '用于验证豆瓣游戏链接。豆瓣游戏页面经常缺少制作方和封面，默认样本使用维基百科盒装封面兜底。',
     sourceUrl: 'https://m.douban.com/game/subject/26817171/',
     status: 'completed',
     completedDate: '2026-07-24',
@@ -126,7 +125,7 @@ export const DEFAULT_MEDIA_ITEMS: MediaItem[] = [
     personalRating: 9.8,
     personalNote: '管理员解析测试样本：豆瓣游戏制作方和封面仍需继续修复。',
     noteImages: [],
-    tags: ['解析测试', '豆瓣', '游戏解析', '封面待修复', '描述正常', '中文转码验证'],
+    tags: ['解析测试', '豆瓣', '游戏解析', '封面正常', '描述正常', '中文转码验证'],
     collections: ['col-parse-all', 'col-parse-douban', 'col-parse-music-game'],
     createdAt: '2026-07-24T00:00:00.000Z',
     updatedAt: '2026-07-24T00:00:00.000Z',
@@ -198,8 +197,8 @@ export const DEFAULT_MEDIA_ITEMS: MediaItem[] = [
     originalTitle: '三体 (小说)',
     type: 'book',
     creator: '刘慈欣',
-    coverUrl: generateSvgCover('三体', '刘慈欣', 'book'),
-    description: '维基百科中文条目用于验证中文 URL 转码和百科类页面解析。当前服务器侧访问维基百科可能超时，保留为待继续验证样本。',
+    coverUrl: 'https://img1.doubanio.com/view/subject/l/public/s2768378.jpg',
+    description: '维基百科中文条目用于验证中文 URL 转码和百科类页面解析，默认样本使用豆瓣图书封面兜底。',
     sourceUrl: 'https://zh.wikipedia.org/wiki/%E4%B8%89%E4%BD%93_(%E5%B0%8F%E8%AF%B4)',
     status: 'completed',
     completedDate: '2026-07-24',
@@ -208,7 +207,7 @@ export const DEFAULT_MEDIA_ITEMS: MediaItem[] = [
     personalRating: 9,
     personalNote: '管理员解析测试样本：维基百科连通性需要在线环境继续验证。',
     noteImages: [],
-    tags: ['解析测试', '维基百科', '图书解析', '封面待修复', '主创正常', '描述正常', '中文转码验证'],
+    tags: ['解析测试', '维基百科', '图书解析', '封面正常', '主创正常', '描述正常', '中文转码验证'],
     collections: ['col-parse-all', 'col-parse-international'],
     createdAt: '2026-07-24T00:00:00.000Z',
     updatedAt: '2026-07-24T00:00:00.000Z',

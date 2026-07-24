@@ -52,6 +52,12 @@ export default function MediaDetailModal({
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullTimeline, setShowFullTimeline] = useState(false);
+  const cleanOriginalTitle = (item.originalTitle || '').trim();
+  const shouldShowOriginalTitle =
+    cleanOriginalTitle &&
+    cleanOriginalTitle !== item.title &&
+    !cleanOriginalTitle.startsWith(`${item.title} (`) &&
+    !cleanOriginalTitle.startsWith(`${item.title}（`);
 
   // Auto-save state for Personal Note (noteText)
   const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -297,9 +303,9 @@ export default function MediaDetailModal({
                   </span>
                 )}
               </div>
-              {item.originalTitle && (
+              {shouldShowOriginalTitle && (
                 <div className="text-[12px] text-zinc-500 dark:text-zinc-400 font-serif italic -mt-2">
-                  原名：{item.originalTitle}
+                  原名：{cleanOriginalTitle}
                 </div>
               )}
 

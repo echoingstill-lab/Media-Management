@@ -54,6 +54,17 @@ function normalizeMediaCoverUrl(url: string): string {
     .replace('/spic/', '/lpic/');
 }
 
+function normalizeKnownTestCover(item: MediaItem): string {
+  const coverUrl = item.coverUrl || '';
+  if (item.id === 'test-wikipedia-three-body' && (!coverUrl || coverUrl.startsWith('data:image/svg+xml'))) {
+    return 'https://img1.doubanio.com/view/subject/l/public/s2768378.jpg';
+  }
+  if (item.id === 'test-douban-game-zelda' && (!coverUrl || coverUrl.startsWith('data:image/svg+xml'))) {
+    return 'https://upload.wikimedia.org/wikipedia/en/c/c6/The_Legend_of_Zelda_Breath_of_the_Wild.jpg';
+  }
+  return coverUrl;
+}
+
 function normalizeLegacyMediaItem(item: MediaItem): MediaItem {
   const title = (item.title || '').trim();
   const titleParts = title.split(/\s+\/\s+/).map(part => part.trim()).filter(Boolean);
@@ -67,7 +78,7 @@ function normalizeLegacyMediaItem(item: MediaItem): MediaItem {
   return {
     ...item,
     ...normalizedTitleFields,
-    coverUrl: item.coverUrl ? normalizeMediaCoverUrl(item.coverUrl) : item.coverUrl,
+    coverUrl: normalizeMediaCoverUrl(normalizeKnownTestCover(item)),
   };
 }
 
@@ -1309,6 +1320,44 @@ export default function App() {
                   className="px-2.5 py-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 text-[11px] cursor-pointer"
                 >
                   稍后再说
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Cloud/local conflict prompt */}
+        <AnimatePresence>
+          {cloudSync.status === 'conflict' && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="p-3 bg-amber-500/10 border border-amber-500/35 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-serif"
+            >
+              <div className="flex items-center gap-2 text-amber-100">
+                <Database size={14} className="shrink-0 text-amber-300" />
+                <span>
+                  本机和云端都有数据，应用不会自动覆盖。请进入“数据相关”选择从云端恢复，或确认用本机数据覆盖云端。
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setSelectedTab('backup');
+                    setUserGuideInitialTab('data');
+                    setShowUserGuide(true);
+                  }}
+                  className="px-3 py-1 bg-amber-200 text-[#111214] font-bold text-[11px] uppercase tracking-wider hover:bg-amber-100 transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <HelpCircle size={12} />
+                  <span>查看恢复指引</span>
+                </button>
+                <button
+                  onClick={() => setSelectedTab('backup')}
+                  className="px-3 py-1 border border-amber-300/50 text-amber-100 hover:bg-amber-300/10 font-bold text-[11px] uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  去数据相关
                 </button>
               </div>
             </motion.div>

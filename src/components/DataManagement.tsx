@@ -30,8 +30,14 @@ interface DataManagementProps {
     message: string;
     updatedAt?: string | null;
   };
+  recoverySnapshotInfo?: {
+    available: boolean;
+    savedAt?: string | null;
+    itemCount?: number;
+  };
   onPullCloud?: () => void;
   onPushCloud?: (force?: boolean) => void;
+  onRestoreRecoverySnapshot?: () => void;
 }
 
 interface ParsedImportRow {
@@ -105,8 +111,10 @@ export default function DataManagement({
   darkMode,
   isAdmin = false,
   cloudSync,
+  recoverySnapshotInfo,
   onPullCloud,
   onPushCloud,
+  onRestoreRecoverySnapshot,
 }: DataManagementProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'idle'; message: string }>({
@@ -592,6 +600,27 @@ export default function DataManagement({
             </button>
           )}
         </div>
+        {recoverySnapshotInfo?.available && (
+          <div className="mt-4 p-3 border border-amber-500/30 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <p className="font-bold">检测到云恢复前的本机快照</p>
+                <p className="mt-1 opacity-80">
+                  快照内约 {recoverySnapshotInfo.itemCount || 0} 条媒体记录
+                  {recoverySnapshotInfo.savedAt ? `，保存于 ${new Date(recoverySnapshotInfo.savedAt).toLocaleString()}` : ''}。
+                  如果恢复云端后发现图书或其他本机记录不见了，可以先合并这份快照。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onRestoreRecoverySnapshot}
+                className="shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors"
+              >
+                合并恢复本机快照
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* 1. Core Backup & Restore */}

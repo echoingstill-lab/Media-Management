@@ -24,6 +24,7 @@ import TagManagerModal from './components/TagManagerModal';
 import UserGuideModal from './components/UserGuideModal';
 import AccountSettingsModal from './components/AccountSettingsModal';
 import { apiJson } from './utils/api';
+import { getDisplayCoverUrl } from './utils/imageProxy';
 
 type CloudPayload = {
   version: string;
@@ -40,6 +41,12 @@ type CloudSyncState = {
   status: 'idle' | 'syncing' | 'synced' | 'error' | 'conflict';
   message: string;
   updatedAt?: string | null;
+};
+
+type RecoverySnapshotInfo = {
+  available: boolean;
+  savedAt?: string | null;
+  itemCount?: number;
 };
 
 function getOnboardingKey(username: string | null): string {
@@ -358,6 +365,7 @@ export default function App() {
   const [archivePage, setArchivePage] = useState(1);
   const archiveDragStateRef = React.useRef({ startX: 0, active: false, moved: false });
   const [isStandaloneTagsExpanded, setIsStandaloneTagsExpanded] = useState(false);
+  const [recoverySnapshotTick, setRecoverySnapshotTick] = useState(0);
 
   // --- Modal Popups Trigger State ---
   const [activeMediaDetailId, setActiveMediaDetailId] = useState<string | null>(null);
@@ -414,6 +422,33 @@ export default function App() {
     tagDefinitions,
   });
 
+  const getRecoverySnapshotKey = () => `media_management_pre_cloud_restore_${currentUser || 'guest'}`;
+
+  const parseRecoverySnapshot = (raw: string | null): Partial<CloudPayload> | null => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const getRecoverySnapshotPayload = (): Partial<CloudPayload> | null => {
+    const keys = Array.from(new Set([
+      getRecoverySnapshotKey(),
+      currentUser ? `media_management_pre_cloud_restore_${currentUser.trim().toLowerCase()}` : '',
+      'media_management_pre_cloud_restore_guest',
+    ].filter(Boolean)));
+
+    for (const key of keys) {
+      const snapshot = parseRecoverySnapshot(localStorage.getItem(key));
+      if (snapshot && hasMeaningfulCloudPayload(snapshot)) return snapshot;
+    }
+    return null;
+  };
+
   const gzipTextToBase64 = async (text: string): Promise<string | null> => {
     const CompressionStreamCtor = (window as any).CompressionStream;
     if (!CompressionStreamCtor) return null;
@@ -435,6 +470,16 @@ export default function App() {
       (Array.isArray(payload.checkInLogs) && payload.checkInLogs.length > 0)
     );
   };
+
+  const recoverySnapshotInfo: RecoverySnapshotInfo = React.useMemo(() => {
+    const snapshot = getRecoverySnapshotPayload();
+    if (!snapshot) return { available: false };
+    return {
+      available: true,
+      savedAt: snapshot.exportedAt || null,
+      itemCount: Array.isArray(snapshot.mediaItems) ? snapshot.mediaItems.length : 0,
+    };
+  }, [currentUser, recoverySnapshotTick, mediaItems.length]);
 
   const hasStoredArrayData = (key: string) => {
     const raw = localStorage.getItem(key);
@@ -592,9 +637,10 @@ export default function App() {
       }
       if (hasMeaningfulCloudPayload(buildCloudPayload())) {
         localStorage.setItem(
-          `media_management_pre_cloud_restore_${currentUser || 'guest'}`,
+          getRecoverySnapshotKey(),
           JSON.stringify(buildCloudPayload())
         );
+        setRecoverySnapshotTick(tick => tick + 1);
       }
       applyCloudPayload(data.data, { mergeLocal: true });
       if (data.updatedAt) {
@@ -613,6 +659,27 @@ export default function App() {
         message: error.message || '读取云端数据失败。',
       });
     }
+  };
+
+  const handleRestoreRecoverySnapshot = () => {
+    const snapshot = getRecoverySnapshotPayload();
+    if (!snapshot) {
+      setCloudSync(prev => ({
+        ...prev,
+        status: 'error',
+        message: '没有找到可恢复的本机快照。如果旧数据已经被覆盖，需要从之前导出的 JSON 或豆瓣 CSV 重新导入。',
+      }));
+      return;
+    }
+
+    applyCloudPayload(snapshot, { mergeLocal: true });
+    setRecoverySnapshotTick(tick => tick + 1);
+    setCloudSync(prev => ({
+      ...prev,
+      status: 'synced',
+      message: '已把云恢复前的本机快照合并回当前数据。请先确认图书等记录已恢复，再手动上传到云端。',
+    }));
+    setSelectedTab('archive');
   };
 
   const handlePushCloud = async (force = false) => {
@@ -1294,6 +1361,7 @@ export default function App() {
   const currentArchivePage = Math.min(archivePage, totalArchivePages);
   const archivePageStart = (currentArchivePage - 1) * ARCHIVE_PAGE_SIZE;
   const visibleFilteredItems = filteredItems.slice(archivePageStart, archivePageStart + ARCHIVE_PAGE_SIZE);
+  const filteredItemCoverSignature = filteredItems.map(item => `${item.id}:${item.coverUrl || ''}`).join('|');
 
   useEffect(() => {
     setArchivePage(1);
@@ -1311,6 +1379,35 @@ export default function App() {
 
   const goToNextArchivePage = () => goToArchivePage(currentArchivePage + 1);
   const goToPrevArchivePage = () => goToArchivePage(currentArchivePage - 1);
+
+  useEffect(() => {
+    if (selectedTab !== 'archive' || filteredItems.length === 0 || totalArchivePages <= 1) return;
+
+    const preloadPage = (page: number) => {
+      const wrapped = ((page - 1 + totalArchivePages) % totalArchivePages) + 1;
+      const start = (wrapped - 1) * ARCHIVE_PAGE_SIZE;
+      filteredItems.slice(start, start + ARCHIVE_PAGE_SIZE).forEach(item => {
+        if (!item.coverUrl) return;
+        const image = new Image();
+        image.decoding = 'async';
+        image.src = getDisplayCoverUrl(item.coverUrl, 'card');
+      });
+    };
+
+    const run = () => {
+      preloadPage(currentArchivePage + 1);
+      preloadPage(currentArchivePage - 1);
+    };
+
+    const idleWindow = window as any;
+    if (idleWindow.requestIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(run, { timeout: 1500 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+
+    const timerId = window.setTimeout(run, 250);
+    return () => window.clearTimeout(timerId);
+  }, [selectedTab, currentArchivePage, totalArchivePages, filteredItemCoverSignature]);
 
   const archivePageNumbers = Array.from(new Set([
     1,
@@ -1905,7 +2002,7 @@ export default function App() {
                 {renderArchivePagination('top')}
 
                 <div
-                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 touch-pan-y select-none"
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5 touch-pan-y select-none"
                   onPointerDown={(event) => {
                     archiveDragStateRef.current = { startX: event.clientX, active: true, moved: false };
                   }}
@@ -2047,8 +2144,10 @@ export default function App() {
               darkMode={darkMode}
               isAdmin={isAdmin && ['echoingstill', 'admin'].includes((currentUser || '').toLowerCase())}
               cloudSync={cloudSync}
+              recoverySnapshotInfo={recoverySnapshotInfo}
               onPullCloud={handlePullCloud}
               onPushCloud={handlePushCloud}
+              onRestoreRecoverySnapshot={handleRestoreRecoverySnapshot}
             />
           </div>
         )}

@@ -105,22 +105,6 @@ function getCurrentArchiveGridColumns(): number {
   return getArchiveGridColumnsForWidth(window.innerWidth);
 }
 
-function getArchivePageSize(totalItems: number, columns: number): number {
-  const basePageSize = columns * 8;
-  if (totalItems <= basePageSize) return basePageSize;
-
-  const basePages = Math.ceil(totalItems / basePageSize);
-  const lastPageItems = totalItems % basePageSize;
-  const sparseLastPageLimit = columns * 2;
-
-  if (basePages > 1 && lastPageItems > 0 && lastPageItems < sparseLastPageLimit) {
-    const targetPages = basePages - 1;
-    return Math.ceil(Math.ceil(totalItems / targetPages) / columns) * columns;
-  }
-
-  return basePageSize;
-}
-
 export default function App() {
   // Helper for user-scoped storage key
   const getStorageKey = (keyType: 'items' | 'collections' | 'logs' | 'tags', username: string | null, isAdminUser: boolean) => {
@@ -1394,7 +1378,7 @@ export default function App() {
       return idxA - idxB;
     });
 
-  const archivePageSize = getArchivePageSize(filteredItems.length, archiveGridColumns);
+  const archivePageSize = archiveGridColumns * 8;
   const totalArchivePages = Math.max(1, Math.ceil(filteredItems.length / archivePageSize));
   const currentArchivePage = Math.min(archivePage, totalArchivePages);
   const archivePageStart = (currentArchivePage - 1) * archivePageSize;
@@ -2069,9 +2053,9 @@ export default function App() {
                     event.stopPropagation();
                   }}
                 >
-                  {visibleFilteredItems.map(item => (
+                  {visibleFilteredItems.map((item, index) => (
                     <MediaCard
-                      key={item.id}
+                      key={`${item.id}-${archivePageStart + index}`}
                       item={item}
                       onClick={() => setActiveMediaDetailId(item.id)}
                       onContextMenu={handleMediaContextMenu}

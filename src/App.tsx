@@ -94,24 +94,24 @@ function normalizeMediaItems(items: MediaItem[]): MediaItem[] {
 }
 
 function getArchiveGridColumnsForWidth(width: number): number {
-  if (width >= 1024) return 6;
+  if (width >= 1024) return 5;
   if (width >= 768) return 4;
   if (width >= 640) return 3;
   return 2;
 }
 
 function getCurrentArchiveGridColumns(): number {
-  if (typeof window === 'undefined') return 6;
+  if (typeof window === 'undefined') return 5;
   return getArchiveGridColumnsForWidth(window.innerWidth);
 }
 
 function getArchivePageSize(totalItems: number, columns: number): number {
-  const basePageSize = columns * 6;
+  const basePageSize = columns * 8;
   if (totalItems <= basePageSize) return basePageSize;
 
   const basePages = Math.ceil(totalItems / basePageSize);
   const lastPageItems = totalItems % basePageSize;
-  const sparseLastPageLimit = columns * 3;
+  const sparseLastPageLimit = columns * 2;
 
   if (basePages > 1 && lastPageItems > 0 && lastPageItems < sparseLastPageLimit) {
     const targetPages = basePages - 1;
@@ -1458,7 +1458,7 @@ export default function App() {
   const renderArchivePagination = (position: 'top' | 'bottom') => (
     <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-zinc-400 font-serif ${position === 'bottom' ? 'pt-2' : ''}`}>
       <span>
-        第 {currentArchivePage} / {totalArchivePages} 页，每页最多 {archivePageSize} 项，共 {filteredItems.length} 项
+        第 {currentArchivePage} / {totalArchivePages} 页，本页 {visibleFilteredItems.length} 项，共 {filteredItems.length} 项
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
         <button
@@ -2040,7 +2040,7 @@ export default function App() {
                 {renderArchivePagination('top')}
 
                 <div
-                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5 touch-pan-y select-none"
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 touch-pan-y select-none"
                   onPointerDown={(event) => {
                     archiveDragStateRef.current = { startX: event.clientX, active: true, moved: false };
                   }}
